@@ -43,6 +43,9 @@ type CoreAPI interface {
 	// Routing returns an implementation of Routing API
 	Routing() RoutingAPI
 
+	// Sds returns an implementation of Sds API
+	Sds() SdsAPI
+
 	// ResolvePath resolves the path using UnixFS resolver, and returns the resolved
 	// immutable path, and the remainder of the path segments that cannot be resolved
 	// within UnixFS.
