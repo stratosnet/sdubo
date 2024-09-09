@@ -145,6 +145,11 @@ func (api *CoreAPI) Routing() coreiface.RoutingAPI {
 	return (*RoutingAPI)(api)
 }
 
+// Sds returns the SdsAPI interface implementation backed by the go-ipfs node
+func (api *CoreAPI) Sds() coreiface.SdsAPI {
+	return (*SdsAPI)(api)
+}
+
 // WithOptions returns api with global options applied
 func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, error) {
 	settings := api.parentOpts // make sure to copy
