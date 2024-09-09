@@ -310,6 +310,15 @@ See 'dag export' and 'dag import' for more information.
 					return
 				}
 
+				// TODO: Add sds file uploader
+				sdsFileHash := "v05j1m56sflvav0f1ah4c6gcneueha3p0vr43rpo"
+
+				_, err = api.Sds().Link(req.Context, pathAdded, sdsFileHash, opts...)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
 				// creating MFS pointers when optional --to-files is set
 				if toFilesSet {
 					if toFilesStr == "" {
