@@ -2,8 +2,12 @@ package coreapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 
 	blockservice "github.com/ipfs/boxo/blockservice"
 	bstore "github.com/ipfs/boxo/blockstore"
@@ -19,7 +23,9 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	options "github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/core/coreunix"
+	"github.com/ipfs/kubo/sds"
 	"github.com/ipfs/kubo/tracing"
+	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -196,4 +202,89 @@ func (api *SdsAPI) Link(ctx context.Context, cidLink path.ImmutablePath, sdsFile
 	}
 
 	return path.FromCid(nd.Cid()), nil
+}
+
+func randomFileName(size int, ext string) (string, error) {
+	b := make([]byte, size)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x.%s", b, ext), nil
+}
+
+// Add imports the data from the reader into sds store chunks
+func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.UnixfsAddOption) (string, error) {
+	// ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Add")
+	// defer span.End()
+
+	// settings, prefix, err := options.UnixfsAddOptions(opts...)
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// TODO: Move to conf
+	wallet, err := sds.NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
+	if err != nil {
+		return "", err
+	}
+	// TODO: Move to conf
+	rpc, err := sds.NewRpc("http://0.0.0.0:18281")
+	if err != nil {
+		return "", err
+	}
+
+	var file files.File
+
+	switch f := files_.(type) {
+	case files.File:
+		file = f
+	default:
+		return "", fmt.Errorf("not a file, abort")
+	}
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	fileHash := sds.CreateFileHash(fileData)
+
+	oz, err := rpc.GetOzone(wallet)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: How to get file name?
+	fileName, err := randomFileName(16, "txt")
+	if err != nil {
+		return "", err
+	}
+
+	res, err := rpc.RequestUpload(wallet, oz.SequenceNumber, fileName, fileHash, len(fileData))
+	if err != nil {
+		// this is sp error, means that file already exist and uploaded, so we could just link
+		if strings.Contains(err.Error(), "Same file with the name") {
+			return fileHash, nil
+		}
+		return "", err
+	}
+	if res.Return != "1" {
+		return "", fmt.Errorf("failed sp upload with error: %s", res.Return)
+	}
+
+	for res.Return == rpc_api.UPLOAD_DATA {
+		chunkData := make([]byte, *res.OffsetEnd-*res.OffsetStart)
+		copy(chunkData, fileData[*res.OffsetStart:*res.OffsetEnd])
+		fileChunk := base64.StdEncoding.EncodeToString(chunkData)
+		if err != nil {
+			return "", err
+		}
+
+		res, err = rpc.UploadData(wallet, oz.SequenceNumber, fileHash, fileChunk)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return fileHash, nil
 }
