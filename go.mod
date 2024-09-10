@@ -66,6 +66,9 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/prometheus/client_golang v1.19.1
+	github.com/stratosnet/sds v0.12.2
+	github.com/stratosnet/sds/framework v0.0.0-20240830134947-9422d7cdea51
+	github.com/stratosnet/sds/sds-msg v0.0.0-20240830134947-9422d7cdea51
 	github.com/stretchr/testify v1.9.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tidwall/gjson v1.14.4
@@ -91,18 +94,34 @@ require (
 )
 
 require (
+	cosmossdk.io/api v0.7.2 // indirect
+	cosmossdk.io/math v1.2.0 // indirect
+	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
+	github.com/HuKeping/rbtree v0.0.0-20210106022122-8ad34838eb2b // indirect
 	github.com/Jorropo/jsync v1.0.1 // indirect
+	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
+	github.com/alex023/clock v0.0.0-20191208111215-c265f1b2ab18 // indirect
 	github.com/alexbrainman/goissue34681 v0.0.0-20191006012335-3fc7a47baff5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bgadrian/go-mnemonic v0.0.0-20170924142112-3188dc747a1b // indirect
+	github.com/btcsuite/btcd v0.23.4 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
+	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
+	github.com/cosmos/btcutil v1.0.5 // indirect
+	github.com/cosmos/cosmos-proto v1.0.0-beta.3 // indirect
+	github.com/cosmos/go-bip39 v1.0.0 // indirect
+	github.com/cosmos/gogoproto v1.4.11 // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20231225121904-e25f5bc08668 // indirect
 	github.com/cskr/pubsub v1.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
+	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dgraph-io/ristretto v0.0.2 // indirect
@@ -112,16 +131,19 @@ require (
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
+	github.com/glendc/go-external-ip v0.1.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20240509144519-723abb6459b7 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
@@ -130,6 +152,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/hdevalence/ed25519consensus v0.1.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
@@ -161,10 +184,11 @@ require (
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
 	github.com/libp2p/go-yamux/v4 v4.0.1 // indirect
 	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.4 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/miekg/dns v1.1.59 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
@@ -176,10 +200,16 @@ require (
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multistream v0.5.0 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
+	github.com/oasisprotocol/ed25519 v0.0.0-20210505154701-76d8c688d86e // indirect
 	github.com/onsi/ginkgo/v2 v2.17.3 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
+	github.com/pborman/uuid v1.2.1 // indirect
+	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
+	github.com/peterh/liner v1.2.1 // indirect
 	github.com/pion/datachannel v1.5.6 // indirect
 	github.com/pion/dtls/v2 v2.2.11 // indirect
 	github.com/pion/ice/v2 v2.3.24 // indirect
@@ -199,6 +229,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/polydawn/refmt v0.89.0 // indirect
+	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.53.0 // indirect
 	github.com/prometheus/procfs v0.15.0 // indirect
@@ -209,16 +240,26 @@ require (
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/rs/cors v1.10.1 // indirect
 	github.com/samber/lo v1.39.0 // indirect
+	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
+	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/stratosnet/sds/tx-client v0.0.0-20240830134947-9422d7cdea51 // indirect
+	github.com/stratosnet/stratos-chain/api v0.0.0-20240509211914-ee516857645d // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.12 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
+	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb // indirect
+	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/cbor v0.0.0-20171005072247-63513f603b11 // indirect
 	github.com/whyrusleeping/cbor-gen v0.1.1 // indirect
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/contrib/propagators/aws v1.21.1 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.21.1 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.21.1 // indirect
@@ -240,13 +281,17 @@ require (
 	golang.org/x/tools v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
+	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240515191416-fc5f0ca64291 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240515191416-fc5f0ca64291 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
 )
+
+replace github.com/stratosnet/sds => ../sds
 
 go 1.22

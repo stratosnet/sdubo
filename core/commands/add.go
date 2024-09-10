@@ -305,15 +305,29 @@ See 'dag export' and 'dag import' for more information.
 				var err error
 				defer close(events)
 				pathAdded, err := api.Unixfs().Add(req.Context, addit.Node(), opts...)
+				fmt.Println("ipfs add unixfs add err", err)
 				if err != nil {
 					errCh <- err
 					return
 				}
 
-				// TODO: Add sds file uploader
-				sdsFileHash := "v05j1m56sflvav0f1ah4c6gcneueha3p0vr43rpo"
+				// TODO: How to get data from addit.Node()?
+				f, err := api.Unixfs().Get(req.Context, pathAdded)
+				fmt.Println("ipfs add unixfs get err", err)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				sdsFileHash, err := api.Sds().Add(req.Context, f, opts...)
+				fmt.Println("ipfs add sds add err", err)
+				if err != nil {
+					errCh <- err
+					return
+				}
 
 				_, err = api.Sds().Link(req.Context, pathAdded, sdsFileHash, opts...)
+				fmt.Println("ipfs add sds link err", err)
 				if err != nil {
 					errCh <- err
 					return
