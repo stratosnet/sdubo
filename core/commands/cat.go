@@ -153,6 +153,9 @@ func cat(ctx context.Context, api iface.CoreAPI, paths []string, offset int64, m
 			return nil, 0, err
 		}
 
+		fmt.Println("cat file", file)
+		fmt.Println("cat fsize", fsize)
+
 		if offset > fsize {
 			offset = offset - fsize
 			continue
