@@ -68,3 +68,12 @@ func (w *SdsWallet) SignFileUpload(sn, fileHash string) ([]byte, error) {
 	}
 	return sign, nil
 }
+
+func (w *SdsWallet) SignDownloadData(sn, fileHash string) ([]byte, error) {
+	nowSec := time.Now().Unix()
+	sign, err := w.privateKey.Sign([]byte(msgutils.GetFileDownloadWalletSignMessage(fileHash, w.GetAddress(), sn, nowSec)))
+	if err != nil {
+		return nil, err
+	}
+	return sign, nil
+}

@@ -15,4 +15,11 @@ type SdsAPI interface {
 	Link(context.Context, path.ImmutablePath, string, ...options.UnixfsAddOption) (path.ImmutablePath, error)
 	// Add imports the data from the reader into sds store chunks
 	Add(context.Context, files.Node, ...options.UnixfsAddOption) (string, error)
+	// Parse file to get sds file hash
+	Parse(context.Context, files.Node) (string, error)
+	// Get returns a read-only handle to a file tree referenced by a file hash
+	//
+	// Note that some implementations of this API may apply the specified context
+	// to operations performed on the returned file
+	Get(context.Context, string) (files.Node, error)
 }

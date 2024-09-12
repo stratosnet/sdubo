@@ -201,3 +201,63 @@ func (rpc *Rpc) UploadData(wallet *SdsWallet, sn, fileHash string, fileChunk str
 	}
 	return &res, nil
 }
+
+func (rpc *Rpc) RequestDownload(wallet *SdsWallet, sn, fileHash string) (*rpc_api.Result, error) {
+	nowSec := time.Now().Unix()
+	// signature
+	sign, err := wallet.SignDownloadData(sn, fileHash)
+	if err != nil {
+		return nil, err
+	}
+	wpk, err := wallet.GetBech32PubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	req := rpc_api.ParamReqDownloadFile{
+		FileHandle: "sdm://" + wallet.GetAddress() + "/" + fileHash,
+		Signature: rpc_api.Signature{
+			Address:   wallet.GetAddress(),
+			Pubkey:    wpk,
+			Signature: hex.EncodeToString(sign),
+		},
+		ReqTime: nowSec,
+	}
+
+	var res rpc_api.Result
+	err = rpc.sendRequest("user_requestDownload", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) DownloadData(wallet *SdsWallet, reqid, fileHash string) (*rpc_api.Result, error) {
+	req := rpc_api.ParamDownloadData{
+		ReqId:    reqid,
+		FileHash: fileHash,
+	}
+
+	var res rpc_api.Result
+	err := rpc.sendRequest("user_downloadData", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) DownloadedFileInfo(wallet *SdsWallet, reqid, fileHash string, fileSize uint64) (*rpc_api.Result, error) {
+	// param
+	req := rpc_api.ParamDownloadFileInfo{
+		FileHash: fileHash,
+		FileSize: fileSize,
+		ReqId:    reqid,
+	}
+
+	var res rpc_api.Result
+	err := rpc.sendRequest("user_downloadedFileInfo", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}

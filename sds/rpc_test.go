@@ -21,8 +21,7 @@ func randomFileName(size int, ext string) (string, error) {
 	return fmt.Sprintf("%x.%s", b, ext), nil
 }
 
-// TestPluginLoad smoke tsting if plugin successfully compiled and work on current OS
-func TestRPC_GetOzone(t *testing.T) {
+func TestRPC_Upload(t *testing.T) {
 	utils.NewDefaultLogger("/", true, false)
 	wallet, err := NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
 	assert.Equal(t, err, nil)
@@ -69,6 +68,66 @@ func TestRPC_GetOzone(t *testing.T) {
 		fmt.Println("res", res)
 		fmt.Println("res err", err)
 		assert.Equal(t, err, nil)
+	}
+	assert.Equal(t, res.Return, rpc_api.SUCCESS)
+}
+
+func TestRPC_Download(t *testing.T) {
+	utils.NewDefaultLogger("/", true, false)
+	wallet, err := NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
+	assert.Equal(t, err, nil)
+	rpc, err := NewRpc("http://0.0.0.0:18281")
+	assert.Equal(t, err, nil)
+	addr := wallet.GetAddress()
+	fmt.Println("addr", addr)
+	oz, err := rpc.GetOzone(wallet)
+	assert.Equal(t, err, nil)
+
+	fmt.Println("ozone", oz.Ozone)
+	fmt.Println("seq", oz.SequenceNumber)
+
+	// fileHash := "v05j1m517ljekhi1c4ce82pb62c5p1vdjvrbph2g"
+	fileHash := "v05j1m556nt0igqi8f76625t9sn4e13vpgr0mi0o"
+
+	res, err := rpc.RequestDownload(wallet, oz.SequenceNumber, fileHash)
+	fmt.Println("-> request download", res)
+	fmt.Printf("res: %+v\n", res)
+	fmt.Println("res err", err)
+	assert.Equal(t, err, nil)
+
+	var (
+		fileSize uint64 = 0
+		fileData        = make([]byte, 0)
+	)
+
+	// Handle result:1 sending the content
+	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
+		if res.Return == rpc_api.DL_OK_ASK_INFO {
+			fmt.Println("- received response (return: DL_OK_ASK_INFO)")
+			res, err = rpc.DownloadedFileInfo(wallet, res.ReqId, fileHash, fileSize)
+			fmt.Println("- request file information verification (method: user_downloadedFileInfo)")
+			fmt.Println("-> download file info", res)
+			fmt.Println("res", res)
+			fmt.Println("res err", err)
+			assert.Equal(t, err, nil)
+		} else {
+			fmt.Println("- received response (return: DOWNLOAD_OK)")
+			start := *res.OffsetStart
+			end := *res.OffsetEnd
+			fileSize = fileSize + (end - start)
+			decoded, _ := base64.StdEncoding.DecodeString(res.FileData)
+			fileData = append(fileData, decoded...)
+			fmt.Println("- fileData", fileData)
+			fmt.Println("- fileSize", fileSize)
+			fmt.Println("- fileHash", fileHash)
+			fmt.Println("- req id", res.ReqId)
+			res, err = rpc.DownloadData(wallet, res.ReqId, fileHash)
+			fmt.Println("- request downloading file data (method: user_downloadData)")
+			fmt.Println("-> download data", res)
+			fmt.Println("res", res)
+			fmt.Println("res err", err)
+			assert.Equal(t, err, nil)
+		}
 	}
 	assert.Equal(t, res.Return, rpc_api.SUCCESS)
 }
