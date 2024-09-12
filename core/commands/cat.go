@@ -138,6 +138,17 @@ func cat(ctx context.Context, api iface.CoreAPI, paths []string, offset int64, m
 			return nil, 0, err
 		}
 
+		// NOTE: Is it a good place to do?
+		sdsFileHash, err := api.Sds().Parse(ctx, f)
+		fmt.Println("sds parse err", err)
+		if err == nil {
+			sf, err := api.Sds().Get(ctx, sdsFileHash)
+			fmt.Println("sds get err", err)
+			if err == nil {
+				f = sf
+			}
+		}
+
 		var file files.File
 		switch f := f.(type) {
 		case files.File:
