@@ -268,8 +268,8 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 		}
 		return "", err
 	}
-	if res.Return != "1" {
-		return "", fmt.Errorf("failed sp upload with error: %s", res.Return)
+	if res.Return != rpc_api.UPLOAD_DATA {
+		return "", fmt.Errorf("failed sp request upload with error: %s", res.Return)
 	}
 
 	for res.Return == rpc_api.UPLOAD_DATA {
@@ -286,5 +286,91 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 		}
 	}
 
+	if res.Return != rpc_api.SUCCESS {
+		return "", fmt.Errorf("failed sp upload data with error: %s", res.Return)
+	}
+
 	return fileHash, nil
+}
+
+func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
+	file_, ok := nd.(files.File)
+	if !ok {
+		return "", fmt.Errorf("not a file")
+	}
+
+	fsize, err := file_.Size()
+	if err != nil {
+		return "", err
+	}
+
+	fileData := make([]byte, fsize)
+	_, err = io.ReadFull(file_, fileData)
+	if err != nil {
+		return "", err
+	}
+	if len(fileData) == 0 {
+		return "", fmt.Errorf("empty file data")
+	}
+	link := &sdsLinker{}
+	err = json.Unmarshal(fileData, link)
+	if err != nil {
+		return "", err
+	}
+
+	return link.SdsFileHash, nil
+}
+
+func (api *SdsAPI) Get(ctx context.Context, fileHash string) (files.Node, error) {
+	// ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Get", trace.WithAttributes(attribute.String("path", p.String())))
+	// defer span.End()
+
+	// TODO: Move to conf
+	wallet, err := sds.NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Move to conf
+	rpc, err := sds.NewRpc("http://0.0.0.0:18281")
+	if err != nil {
+		return nil, err
+	}
+	oz, err := rpc.GetOzone(wallet)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := rpc.RequestDownload(wallet, oz.SequenceNumber, fileHash)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		fileSize uint64 = 0
+		fileData        = make([]byte, 0)
+	)
+
+	// Handle result:1 sending the content
+	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
+		if res.Return == rpc_api.DL_OK_ASK_INFO {
+			res, err = rpc.DownloadedFileInfo(wallet, res.ReqId, fileHash, fileSize)
+		} else {
+			start := *res.OffsetStart
+			end := *res.OffsetEnd
+			fileSize = fileSize + (end - start)
+			decoded, _ := base64.StdEncoding.DecodeString(res.FileData)
+			fileData = append(fileData, decoded...)
+			res, err = rpc.DownloadData(wallet, res.ReqId, fileHash)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	if res.Return != rpc_api.SUCCESS {
+		return nil, fmt.Errorf("failed sp download with error: %s", res.Return)
+	}
+
+	rfc := files.NewBytesFile(fileData)
+
+	return rfc, nil
 }
