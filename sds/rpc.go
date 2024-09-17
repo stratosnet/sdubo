@@ -9,11 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ipfs/go-cid"
-	mbase "github.com/multiformats/go-multibase"
-	mh "github.com/multiformats/go-multihash"
-	"github.com/stratosnet/sds/framework/crypto"
-
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
@@ -41,14 +36,7 @@ func wrapJsonRpc(method string, param []byte) []byte {
 	return r
 }
 
-func CreateFileHash(fileData []byte) string {
-	sliceKeccak256, _ := mh.SumStream(bytes.NewReader(fileData), mh.KECCAK_256, 20)
-	data := append([]byte(""), sliceKeccak256...)
-	kHash, _ := mh.Sum(data, mh.KECCAK_256, 20)
-	fileCid := cid.NewCidV1(uint64(crypto.SDS_CODEC), kHash)
-	encoder, _ := mbase.NewEncoder(mbase.Base32hex)
-	return fileCid.Encode(encoder)
-}
+var timeout = 10 * time.Second
 
 type Rpc struct {
 	httpRpcUrl string
@@ -86,7 +74,9 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	// req.Header.Set("X-Custom-Header", "myvalue")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

@@ -22,6 +22,7 @@ import (
 	"github.com/ipfs/kubo/core"
 	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/node"
+	"github.com/ipfs/kubo/sds"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -161,7 +162,7 @@ func newGatewayBackend(n *core.IpfsNode) (gateway.IPFSBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &offlineGatewayErrWrapper{gwimpl: backend}, nil
+	return &offlineGatewayErrWrapper{gwimpl: sds.NewSdsBlockBackend(backend)}, nil
 }
 
 type offlineGatewayErrWrapper struct {

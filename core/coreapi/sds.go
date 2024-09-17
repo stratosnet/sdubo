@@ -3,11 +3,8 @@ package coreapi
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	blockservice "github.com/ipfs/boxo/blockservice"
 	bstore "github.com/ipfs/boxo/blockstore"
@@ -25,30 +22,8 @@ import (
 	"github.com/ipfs/kubo/core/coreunix"
 	"github.com/ipfs/kubo/sds"
 	"github.com/ipfs/kubo/tracing"
-	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 	"go.opentelemetry.io/otel/attribute"
 )
-
-type sdsLinker struct {
-	OriginalCID string `json:"originalCID,omitempty"`
-	SdsFileHash string `json:"sdsFileHash,omitempty"`
-}
-
-func NewSdsFile(cidLink path.ImmutablePath, sdsFileHash string) (files.Node, error) {
-	link := &sdsLinker{
-		OriginalCID: cidLink.RootCid().String(),
-		SdsFileHash: sdsFileHash,
-	}
-	b, err := json.Marshal(link)
-	if err != nil {
-		return nil, err
-	}
-	rfc := files.NewBytesFile(b)
-	// mapFile := files.NewMapDirectory(map[string]files.Node{
-	// 	"sdsMapper": rfc,
-	// })
-	return rfc, nil
-}
 
 type SdsAPI CoreAPI
 
@@ -185,7 +160,7 @@ func (api *SdsAPI) Link(ctx context.Context, cidLink path.ImmutablePath, sdsFile
 		fileAdder.SetMfsRoot(mr)
 	}
 
-	mapFile, err := NewSdsFile(cidLink, sdsFileHash)
+	mapFile, err := sds.NewSdsFile(cidLink, sdsFileHash)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
@@ -215,25 +190,6 @@ func randomFileName(size int, ext string) (string, error) {
 
 // Add imports the data from the reader into sds store chunks
 func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.UnixfsAddOption) (string, error) {
-	// ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Add")
-	// defer span.End()
-
-	// settings, prefix, err := options.UnixfsAddOptions(opts...)
-	// if err != nil {
-	// 	return "", err
-	// }
-
-	// TODO: Move to conf
-	wallet, err := sds.NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
-	if err != nil {
-		return "", err
-	}
-	// TODO: Move to conf
-	rpc, err := sds.NewRpc("http://0.0.0.0:18281")
-	if err != nil {
-		return "", err
-	}
-
 	var file files.File
 
 	switch f := files_.(type) {
@@ -247,50 +203,16 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 	if err != nil {
 		return "", err
 	}
-	fileHash := sds.CreateFileHash(fileData)
 
-	oz, err := rpc.GetOzone(wallet)
+	// TODO: Move to global config
+	cfg := sds.NewConfig("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893", "http://0.0.0.0:18281")
+
+	f, err := sds.NewFetcher(cfg)
 	if err != nil {
 		return "", err
 	}
 
-	// TODO: How to get file name?
-	fileName, err := randomFileName(16, "txt")
-	if err != nil {
-		return "", err
-	}
-
-	res, err := rpc.RequestUpload(wallet, oz.SequenceNumber, fileName, fileHash, len(fileData))
-	if err != nil {
-		// this is sp error, means that file already exist and uploaded, so we could just link
-		if strings.Contains(err.Error(), "Same file with the name") {
-			return fileHash, nil
-		}
-		return "", err
-	}
-	if res.Return != rpc_api.UPLOAD_DATA {
-		return "", fmt.Errorf("failed sp request upload with error: %s", res.Return)
-	}
-
-	for res.Return == rpc_api.UPLOAD_DATA {
-		chunkData := make([]byte, *res.OffsetEnd-*res.OffsetStart)
-		copy(chunkData, fileData[*res.OffsetStart:*res.OffsetEnd])
-		fileChunk := base64.StdEncoding.EncodeToString(chunkData)
-		if err != nil {
-			return "", err
-		}
-
-		res, err = rpc.UploadData(wallet, oz.SequenceNumber, fileHash, fileChunk)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	if res.Return != rpc_api.SUCCESS {
-		return "", fmt.Errorf("failed sp upload data with error: %s", res.Return)
-	}
-
-	return fileHash, nil
+	return f.Upload(fileData)
 }
 
 func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
@@ -309,65 +231,22 @@ func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(fileData) == 0 {
-		return "", fmt.Errorf("empty file data")
-	}
-	link := &sdsLinker{}
-	err = json.Unmarshal(fileData, link)
-	if err != nil {
-		return "", err
-	}
 
-	return link.SdsFileHash, nil
+	return sds.ParseLink(fileData)
 }
 
 func (api *SdsAPI) Get(ctx context.Context, fileHash string) (files.Node, error) {
-	// ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Get", trace.WithAttributes(attribute.String("path", p.String())))
-	// defer span.End()
+	// TODO: Move to global config
+	cfg := sds.NewConfig("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893", "http://0.0.0.0:18281")
 
-	// TODO: Move to conf
-	wallet, err := sds.NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
-	if err != nil {
-		return nil, err
-	}
-	// TODO: Move to conf
-	rpc, err := sds.NewRpc("http://0.0.0.0:18281")
-	if err != nil {
-		return nil, err
-	}
-	oz, err := rpc.GetOzone(wallet)
+	f, err := sds.NewFetcher(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := rpc.RequestDownload(wallet, oz.SequenceNumber, fileHash)
+	fileData, err := f.Download(fileHash)
 	if err != nil {
 		return nil, err
-	}
-
-	var (
-		fileSize uint64 = 0
-		fileData        = make([]byte, 0)
-	)
-
-	// Handle result:1 sending the content
-	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
-		if res.Return == rpc_api.DL_OK_ASK_INFO {
-			res, err = rpc.DownloadedFileInfo(wallet, res.ReqId, fileHash, fileSize)
-		} else {
-			start := *res.OffsetStart
-			end := *res.OffsetEnd
-			fileSize = fileSize + (end - start)
-			decoded, _ := base64.StdEncoding.DecodeString(res.FileData)
-			fileData = append(fileData, decoded...)
-			res, err = rpc.DownloadData(wallet, res.ReqId, fileHash)
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-	if res.Return != rpc_api.SUCCESS {
-		return nil, fmt.Errorf("failed sp download with error: %s", res.Return)
 	}
 
 	rfc := files.NewBytesFile(fileData)

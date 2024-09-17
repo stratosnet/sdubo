@@ -12,15 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func randomFileName(size int, ext string) (string, error) {
-	b := make([]byte, size)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x.%s", b, ext), nil
-}
-
 func TestRPC_Upload(t *testing.T) {
 	utils.NewDefaultLogger("/", true, false)
 	wallet, err := NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
@@ -86,8 +77,8 @@ func TestRPC_Download(t *testing.T) {
 	fmt.Println("ozone", oz.Ozone)
 	fmt.Println("seq", oz.SequenceNumber)
 
-	// fileHash := "v05j1m517ljekhi1c4ce82pb62c5p1vdjvrbph2g"
-	fileHash := "v05j1m556nt0igqi8f76625t9sn4e13vpgr0mi0o"
+	fileHash := "v05j1m517ljekhi1c4ce82pb62c5p1vdjvrbph2g"
+	// fileHash := "v05j1m556nt0igqi8f76625t9sn4e13vpgr0mi0o"
 
 	res, err := rpc.RequestDownload(wallet, oz.SequenceNumber, fileHash)
 	fmt.Println("-> request download", res)
