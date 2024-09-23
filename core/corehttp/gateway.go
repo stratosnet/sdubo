@@ -162,7 +162,12 @@ func newGatewayBackend(n *core.IpfsNode) (gateway.IPFSBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &offlineGatewayErrWrapper{gwimpl: sds.NewSdsBlockBackend(backend)}, nil
+	// sds
+	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds)
+	if err != nil {
+		return nil, err
+	}
+	return &offlineGatewayErrWrapper{gwimpl: sdsBackend}, nil
 }
 
 type offlineGatewayErrWrapper struct {

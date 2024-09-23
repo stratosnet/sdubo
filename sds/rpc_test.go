@@ -14,7 +14,7 @@ import (
 
 func TestRPC_Upload(t *testing.T) {
 	utils.NewDefaultLogger("/", true, false)
-	wallet, err := NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
+	wallet, err := NewSdsWallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
 	assert.Equal(t, err, nil)
 	rpc, err := NewRpc("http://0.0.0.0:18281")
 	assert.Equal(t, err, nil)
@@ -65,7 +65,7 @@ func TestRPC_Upload(t *testing.T) {
 
 func TestRPC_Download(t *testing.T) {
 	utils.NewDefaultLogger("/", true, false)
-	wallet, err := NewSdsSecp256k1Wallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
+	wallet, err := NewSdsWallet("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893")
 	assert.Equal(t, err, nil)
 	rpc, err := NewRpc("http://0.0.0.0:18281")
 	assert.Equal(t, err, nil)
