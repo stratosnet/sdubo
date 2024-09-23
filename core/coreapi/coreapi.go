@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/kubo/config"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/coreiface/options"
+	"github.com/ipfs/kubo/sds"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	record "github.com/libp2p/go-libp2p-record"
 	ci "github.com/libp2p/go-libp2p/core/crypto"
@@ -80,6 +81,9 @@ type CoreAPI struct {
 	// ONLY for re-applying options in WithOptions, DO NOT USE ANYWHERE ELSE
 	nd         *core.IpfsNode
 	parentOpts options.ApiSettings
+
+	// only for sds
+	sdsFetcher *sds.Fetcher
 }
 
 // NewCoreAPI creates new instance of IPFS CoreAPI backed by go-ipfs Node.
@@ -251,6 +255,10 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		subAPI.exchange = offlinexch.Exchange(subAPI.blockstore)
 		subAPI.blocks = bserv.New(subAPI.blockstore, subAPI.exchange)
 		subAPI.dag = dag.NewDAGService(subAPI.blocks)
+	}
+
+	if settings.SdsFetcher != nil {
+		subAPI.sdsFetcher = settings.SdsFetcher.(*sds.Fetcher)
 	}
 
 	return subAPI, nil

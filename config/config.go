@@ -40,6 +40,9 @@ type Config struct {
 	Import       Import
 	Version      Version
 
+	// sds
+	Sds Sds
+
 	Internal Internal // experimental/unstable options
 }
 

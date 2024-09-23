@@ -9,6 +9,7 @@ import (
 	core "github.com/ipfs/kubo/core"
 	coreapi "github.com/ipfs/kubo/core/coreapi"
 	loader "github.com/ipfs/kubo/plugin/loader"
+	"github.com/ipfs/kubo/sds"
 
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	logging "github.com/ipfs/go-log"
@@ -62,15 +63,28 @@ func (c *Context) GetAPI() (coreiface.CoreAPI, error) {
 			return nil, err
 		}
 		fetchBlocks := true
+		cfg, err := c.GetConfig()
+		if err != nil {
+			return nil, err
+		}
 		if c.Gateway {
-			cfg, err := c.GetConfig()
-			if err != nil {
-				return nil, err
-			}
 			fetchBlocks = !cfg.Gateway.NoFetch
 		}
 
-		c.api, err = coreapi.NewCoreAPI(n, options.Api.FetchBlocks(fetchBlocks))
+		opts := []options.ApiOption{}
+
+		// sds embedding
+		if cfg.Sds.Enabled {
+			fetcher, err := sds.NewFetcher(&cfg.Sds)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, options.Api.SdsFetcher(fetcher))
+		}
+
+		opts = append(opts, options.Api.FetchBlocks(fetchBlocks))
+
+		c.api, err = coreapi.NewCoreAPI(n, opts...)
 		if err != nil {
 			return nil, err
 		}

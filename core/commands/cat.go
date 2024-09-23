@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
 	"github.com/ipfs/kubo/core/commands/cmdutils"
 
@@ -41,6 +42,16 @@ var CatCmd = &cmds.Command{
 			return err
 		}
 
+		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
+
 		offset, _ := req.Options[offsetOptionName].(int64)
 		if offset < 0 {
 			return fmt.Errorf("cannot specify negative offset")
@@ -60,7 +71,7 @@ var CatCmd = &cmds.Command{
 			return err
 		}
 
-		readers, length, err := cat(req.Context, api, req.Arguments, int64(offset), int64(max))
+		readers, length, err := cat(cfg, req.Context, api, req.Arguments, int64(offset), int64(max))
 		if err != nil {
 			return err
 		}
@@ -121,7 +132,7 @@ var CatCmd = &cmds.Command{
 	},
 }
 
-func cat(ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64) ([]io.Reader, uint64, error) {
+func cat(cfg *config.Config, ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64) ([]io.Reader, uint64, error) {
 	readers := make([]io.Reader, 0, len(paths))
 	length := uint64(0)
 	if max == 0 {
@@ -139,13 +150,15 @@ func cat(ctx context.Context, api iface.CoreAPI, paths []string, offset int64, m
 		}
 
 		// NOTE: Is it a good place to do?
-		sdsFileHash, err := api.Sds().Parse(ctx, f)
-		fmt.Println("sds parse err", err)
-		if err == nil {
-			sf, err := api.Sds().Get(ctx, sdsFileHash)
-			fmt.Println("sds get err", err)
+		if cfg.Sds.Enabled {
+			sdsFileHash, err := api.Sds().Parse(ctx, f)
+			fmt.Println("sds parse err", err)
 			if err == nil {
-				f = sf
+				sf, err := api.Sds().Get(ctx, sdsFileHash)
+				fmt.Println("sds get err", err)
+				if err == nil {
+					f = sf
+				}
 			}
 		}
 
@@ -163,9 +176,6 @@ func cat(ctx context.Context, api iface.CoreAPI, paths []string, offset int64, m
 		if err != nil {
 			return nil, 0, err
 		}
-
-		fmt.Println("cat file", file)
-		fmt.Println("cat fsize", fsize)
 
 		if offset > fsize {
 			offset = offset - fsize
