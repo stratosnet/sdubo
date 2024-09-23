@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	fwed25519 "github.com/stratosnet/sds/framework/crypto/ed25519"
 	fwsecp256k1 "github.com/stratosnet/sds/framework/crypto/secp256k1"
 	fwcryptotypes "github.com/stratosnet/sds/framework/crypto/types"
 	fwtypes "github.com/stratosnet/sds/framework/types"
@@ -16,23 +15,15 @@ type SdsWallet struct {
 	privateKey fwcryptotypes.PrivKey
 }
 
-func NewSdsEd25519Wallet(privatKey string) (*SdsWallet, error) {
-	if len(privatKey) < 2 {
-		return nil, fmt.Errorf("wrong pk length")
-	}
-	if privatKey[:2] == "0x" {
-		privatKey = privatKey[2:]
-	}
-	pkBytes, err := hex.DecodeString(privatKey)
+func GenerateSdsWallet() (*SdsWallet, error) {
+	pk, err := fwsecp256k1.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
-	return &SdsWallet{
-		privateKey: fwed25519.Generate(pkBytes),
-	}, nil
+	return NewSdsWallet(pk.String())
 }
 
-func NewSdsSecp256k1Wallet(privatKey string) (*SdsWallet, error) {
+func NewSdsWallet(privatKey string) (*SdsWallet, error) {
 	if len(privatKey) < 2 {
 		return nil, fmt.Errorf("wrong pk length")
 	}

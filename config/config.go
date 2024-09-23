@@ -38,6 +38,9 @@ type Config struct {
 	Pinning      Pinning
 	Import       Import
 
+	// sds
+	Sds Sds
+
 	Internal Internal // experimental/unstable options
 }
 

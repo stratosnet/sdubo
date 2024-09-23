@@ -319,18 +319,20 @@ See 'dag export' and 'dag import' for more information.
 					return
 				}
 
-				sdsFileHash, err := api.Sds().Add(req.Context, f, opts...)
-				fmt.Println("ipfs add sds add err", err)
-				if err != nil {
-					errCh <- err
-					return
-				}
+				if cfg.Sds.Enabled {
+					sdsFileHash, err := api.Sds().Add(req.Context, f, opts...)
+					fmt.Println("ipfs add sds add err", err)
+					if err != nil {
+						errCh <- err
+						return
+					}
 
-				_, err = api.Sds().Link(req.Context, pathAdded, sdsFileHash, opts...)
-				fmt.Println("ipfs add sds link err", err)
-				if err != nil {
-					errCh <- err
-					return
+					_, err = api.Sds().Link(req.Context, pathAdded, sdsFileHash, opts...)
+					fmt.Println("ipfs add sds link err", err)
+					if err != nil {
+						errCh <- err
+						return
+					}
 				}
 
 				// creating MFS pointers when optional --to-files is set

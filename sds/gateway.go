@@ -9,18 +9,25 @@ import (
 	"github.com/ipfs/boxo/gateway"
 	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/kubo/config"
 )
 
 var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
 
 type SdsBlocksBackend struct {
-	b gateway.IPFSBackend
+	b       gateway.IPFSBackend
+	fetcher *Fetcher
 }
 
-func NewSdsBlockBackend(b gateway.IPFSBackend) *SdsBlocksBackend {
-	return &SdsBlocksBackend{
-		b: b,
+func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds) (*SdsBlocksBackend, error) {
+	fetcher, err := NewFetcher(cfg)
+	if err != nil {
+		return nil, err
 	}
+	return &SdsBlocksBackend{
+		b:       b,
+		fetcher: fetcher,
+	}, nil
 }
 
 func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ranges ...gateway.ByteRange) (gateway.ContentPathMetadata, *gateway.GetResponse, error) {
@@ -50,16 +57,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ra
 		return md, n, err
 	}
 
-	// TODO: Move to global config
-	cfg := NewConfig("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893", "http://0.0.0.0:18281")
-
-	f, err := NewFetcher(cfg)
-	if err != nil {
-		logger.Errorf("failed to get sds fetcher: %s", err)
-		return md, n, err
-	}
-
-	sdsFileData, err := f.Download(sdsFileHash)
+	sdsFileData, err := sb.fetcher.Download(sdsFileHash)
 	if err != nil {
 		logger.Errorf("failed to download file '%s' from sds: %s", sdsFileHash, err)
 		return md, n, err

@@ -204,15 +204,7 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 		return "", err
 	}
 
-	// TODO: Move to global config
-	cfg := sds.NewConfig("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893", "http://0.0.0.0:18281")
-
-	f, err := sds.NewFetcher(cfg)
-	if err != nil {
-		return "", err
-	}
-
-	return f.Upload(fileData)
+	return api.sdsFetcher.Upload(fileData)
 }
 
 func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
@@ -236,15 +228,7 @@ func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
 }
 
 func (api *SdsAPI) Get(ctx context.Context, fileHash string) (files.Node, error) {
-	// TODO: Move to global config
-	cfg := sds.NewConfig("0xf4a2b939592564feb35ab10a8e04f6f2fe0943579fb3c9c33505298978b74893", "http://0.0.0.0:18281")
-
-	f, err := sds.NewFetcher(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	fileData, err := f.Download(fileHash)
+	fileData, err := api.sdsFetcher.Download(fileHash)
 	if err != nil {
 		return nil, err
 	}

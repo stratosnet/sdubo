@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ipfs/kubo/config"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
 type Fetcher struct {
-	cfg    *Config
+	cfg    *config.Sds
 	wallet *SdsWallet
 	rpc    *Rpc
 }
 
-func NewFetcher(cfg *Config) (*Fetcher, error) {
-	wallet, err := NewSdsSecp256k1Wallet(cfg.privateKey)
+func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
+	wallet, err := NewSdsWallet(cfg.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := NewRpc(cfg.sdsRpcURL)
+	rpc, err := NewRpc(cfg.RpcURL)
 	if err != nil {
 		return nil, err
 	}
