@@ -72,6 +72,16 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 			return err
 		}
 
+		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
+
 		p, err := cmdutils.PathOrCidPath(req.Arguments[0])
 		if err != nil {
 			return err
@@ -80,6 +90,18 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 		file, err := api.Unixfs().Get(ctx, p)
 		if err != nil {
 			return err
+		}
+
+		if cfg.Sds.Enabled {
+			sdsLink, err := api.Sds().Parse(ctx, file)
+			fmt.Println("sds parse err", err)
+			if err == nil {
+				sf, err := api.Sds().Get(ctx, sdsLink)
+				fmt.Println("sds get err", err)
+				if err == nil {
+					file = sf
+				}
+			}
 		}
 
 		size, err := file.Size()
