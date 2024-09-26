@@ -151,10 +151,10 @@ func cat(cfg *config.Config, ctx context.Context, api iface.CoreAPI, paths []str
 
 		// NOTE: Is it a good place to do?
 		if cfg.Sds.Enabled {
-			sdsFileHash, err := api.Sds().Parse(ctx, f)
+			sdsLink, err := api.Sds().Parse(ctx, f)
 			fmt.Println("sds parse err", err)
 			if err == nil {
-				sf, err := api.Sds().Get(ctx, sdsFileHash)
+				sf, err := api.Sds().Get(ctx, sdsLink)
 				fmt.Println("sds get err", err)
 				if err == nil {
 					f = sf
