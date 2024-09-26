@@ -2,7 +2,6 @@ package coreapi
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
 
@@ -29,7 +28,7 @@ type SdsAPI CoreAPI
 
 // Link a path with sds, adds it to the blockstore,
 // and returns the key representing that node.
-func (api *SdsAPI) Link(ctx context.Context, cidLink path.ImmutablePath, sdsFileHash string, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
+func (api *SdsAPI) Link(ctx context.Context, sdsLink *sds.SdsLinker, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
 	ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Link")
 	defer span.End()
 
@@ -160,7 +159,7 @@ func (api *SdsAPI) Link(ctx context.Context, cidLink path.ImmutablePath, sdsFile
 		fileAdder.SetMfsRoot(mr)
 	}
 
-	mapFile, err := sds.NewSdsFile(cidLink, sdsFileHash)
+	mapFile, err := sds.NewSdsFile(sdsLink)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
@@ -177,15 +176,6 @@ func (api *SdsAPI) Link(ctx context.Context, cidLink path.ImmutablePath, sdsFile
 	}
 
 	return path.FromCid(nd.Cid()), nil
-}
-
-func randomFileName(size int, ext string) (string, error) {
-	b := make([]byte, size)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x.%s", b, ext), nil
 }
 
 // Add imports the data from the reader into sds store chunks
@@ -207,28 +197,28 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 	return api.sdsFetcher.Upload(fileData)
 }
 
-func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (string, error) {
+func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (*sds.SdsLinker, error) {
 	file_, ok := nd.(files.File)
 	if !ok {
-		return "", fmt.Errorf("not a file")
+		return nil, fmt.Errorf("not a file")
 	}
 
 	fsize, err := file_.Size()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	fileData := make([]byte, fsize)
 	_, err = io.ReadFull(file_, fileData)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return sds.ParseLink(fileData)
 }
 
-func (api *SdsAPI) Get(ctx context.Context, fileHash string) (files.Node, error) {
-	fileData, err := api.sdsFetcher.Download(fileHash)
+func (api *SdsAPI) Get(ctx context.Context, sdsLink *sds.SdsLinker) (files.Node, error) {
+	fileData, err := api.sdsFetcher.Download(sdsLink.SdsFileHash)
 	if err != nil {
 		return nil, err
 	}

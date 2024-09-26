@@ -3,6 +3,7 @@ package sds
 import (
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ipfs/kubo/config"
@@ -93,6 +94,24 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 }
 
 func (f *Fetcher) Download(fileHash string) ([]byte, error) {
+	var (
+		fileSize uint64 = 0
+	)
+
+	filePath := filepath.Join(f.cfg.CacheFolder, fileHash)
+
+	fileData, err := readFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	if fileData != nil {
+		return fileData, err
+	}
+
+	if fileData == nil {
+		fileData = make([]byte, 0)
+	}
+
 	oz, err := f.rpc.GetOzone(f.wallet)
 	if err != nil {
 		return nil, err
@@ -103,11 +122,6 @@ func (f *Fetcher) Download(fileHash string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var (
-		fileSize uint64 = 0
-		fileData        = make([]byte, 0)
-	)
 
 	// Handle result:1 sending the content
 	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
@@ -127,6 +141,10 @@ func (f *Fetcher) Download(fileHash string) ([]byte, error) {
 	}
 	if res.Return != rpc_api.SUCCESS {
 		return nil, fmt.Errorf("failed sp download with error: %s", res.Return)
+	}
+
+	if err = writeOnly(filePath, fileData[:]); err != nil {
+		return nil, err
 	}
 
 	return fileData, nil
