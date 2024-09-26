@@ -12,6 +12,7 @@ import (
 
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
+	"github.com/ipfs/kubo/sds"
 
 	"github.com/cheggaaa/pb"
 	"github.com/ipfs/boxo/files"
@@ -388,7 +389,12 @@ See 'dag export' and 'dag import' for more information.
 						return
 					}
 
-					_, err = api.Sds().Link(req.Context, pathAdded, sdsFileHash, opts...)
+					sdsLink := &sds.SdsLinker{
+						OriginalCID: pathAdded.RootCid().String(),
+						SdsFileHash: sdsFileHash,
+					}
+
+					_, err = api.Sds().Link(req.Context, sdsLink, opts...)
 					fmt.Println("ipfs add sds link err", err)
 					if err != nil {
 						errCh <- err

@@ -51,15 +51,15 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ra
 		return md, n, err
 	}
 
-	sdsFileHash, err := ParseLink(fileData)
+	sdsLink, err := ParseLink(fileData)
 	if err != nil {
 		logger.Errorf("failed to parse sds file hash: %s", err)
 		return md, n, err
 	}
 
-	sdsFileData, err := sb.fetcher.Download(sdsFileHash)
+	sdsFileData, err := sb.fetcher.Download(sdsLink.SdsFileHash)
 	if err != nil {
-		logger.Errorf("failed to download file '%s' from sds: %s", sdsFileHash, err)
+		logger.Errorf("failed to download file '%s' from sds: %s", sdsLink.SdsFileHash, err)
 		return md, n, err
 	}
 

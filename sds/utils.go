@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"unsafe"
 
@@ -58,5 +60,54 @@ func setDynamicField(i any, key string, value any) error {
 
 	// Set the value to the field
 	field.Set(reflect.ValueOf(value))
+	return nil
+}
+
+// readFile reads the contents of the file from the provided file path.
+// If the file exists and has content, it returns the data; otherwise, it returns an error.
+func readFile(filePath string) ([]byte, error) {
+	// Open the file for reading
+	ff, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer ff.Close()
+
+	// Get file info
+	fInfo, err := ff.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	// If the file is empty, return an empty slice or nil
+	if fInfo.Size() == 0 {
+		return nil, nil
+	}
+
+	// Read the file contents
+	fileData, err := io.ReadAll(ff)
+	if err != nil {
+		return nil, err
+	}
+
+	return fileData, nil
+}
+
+// writeOnly writes the provided byte data to the specified file path.
+// It creates or overwrites the file with the data.
+func writeOnly(filePath string, data []byte) error {
+	// Open the file with write-only and create flags (truncate if exists)
+	file, err := os.OpenFile(filePath, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Write the data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
