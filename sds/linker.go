@@ -22,9 +22,6 @@ func NewSdsFile(sdsLink *SdsLinker) (files.Node, error) {
 		return nil, err
 	}
 	rfc := files.NewBytesFile(b)
-	// mapFile := files.NewMapDirectory(map[string]files.Node{
-	// 	"sdsMapper": rfc,
-	// })
 	return rfc, nil
 }
 
