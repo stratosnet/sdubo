@@ -312,15 +312,13 @@ See 'dag export' and 'dag import' for more information.
 					return
 				}
 
-				// TODO: How to get data from addit.Node()?
-				f, err := api.Unixfs().Get(req.Context, pathAdded)
-				fmt.Println("ipfs add unixfs get err", err)
-				if err != nil {
-					errCh <- err
-					return
-				}
-
 				if cfg.Sds.Enabled {
+					f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(pathAdded.RootCid())
+					if err != nil {
+						errCh <- err
+						return
+					}
+
 					sdsFileHash, err := api.Sds().Add(req.Context, f, opts...)
 					fmt.Println("ipfs add sds add err", err)
 					if err != nil {
