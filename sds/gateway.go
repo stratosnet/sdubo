@@ -5,10 +5,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/gateway"
 	"github.com/ipfs/boxo/path"
+	pin "github.com/ipfs/boxo/pinning/pinner"
 	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/kubo/config"
 )
 
@@ -17,9 +20,12 @@ var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
 type SdsBlocksBackend struct {
 	b       gateway.IPFSBackend
 	fetcher *Fetcher
+	dag     format.DAGService
+	bs      blockstore.GCBlockstore
+	pin     pin.Pinner
 }
 
-func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds) (*SdsBlocksBackend, error) {
+func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
 	fetcher, err := NewFetcher(cfg)
 	if err != nil {
 		return nil, err
@@ -27,9 +33,18 @@ func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds) (*SdsBlocksBacke
 	return &SdsBlocksBackend{
 		b:       b,
 		fetcher: fetcher,
+		dag:     dag,
+		bs:      bs,
+		pin:     pin,
 	}, nil
 }
 
+// Logic
+//
+// 1. Get from ipfs by cid
+// 2. If not found, get from sds
+// 3. If found, try import DAG from file
+// 4. If ok, load node
 func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ranges ...gateway.ByteRange) (gateway.ContentPathMetadata, *gateway.GetResponse, error) {
 	md, n, err := sb.b.Get(ctx, path, ranges...)
 	if err != nil {
@@ -65,12 +80,28 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ra
 
 	rfc := files.NewBytesFile(sdsFileData)
 
-	sdsFileSize, err := rfc.Size()
+	_, err = NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(rfc, true)
 	if err != nil {
 		return md, n, err
 	}
 
-	n = gateway.NewGetResponseFromReader(rfc, sdsFileSize)
+	// nd, ok := ndMap[path.RootCid()]
+	// if !ok {
+	// 	return md, n, fmt.Errorf("CAR for sds not found")
+	// }
+
+	// sdsFileSize, err := rfc.Size()
+	// if err != nil {
+	// 	return md, n, err
+	// }
+
+	// n = gateway.NewGetResponseFromReader(rfc, sdsFileSize)
+
+	// TODO: Refactor after and remove up block load
+	md, n, err = sb.b.Get(ctx, path, ranges...)
+	if err != nil {
+		return md, n, err
+	}
 
 	return md, n, nil
 }

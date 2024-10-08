@@ -162,8 +162,9 @@ func newGatewayBackend(n *core.IpfsNode) (gateway.IPFSBackend, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// sds
-	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds)
+	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds, n.DAG, n.Blockstore, n.Pinning)
 	if err != nil {
 		return nil, err
 	}
