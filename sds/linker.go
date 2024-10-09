@@ -1,23 +1,15 @@
 package sds
 
 import (
-	"encoding/json"
 	"fmt"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/ipfs/boxo/files"
+	sdsprotos "github.com/ipfs/kubo/sds/protos"
 )
 
-type SdsLinker struct {
-	OriginalCID string `json:"originalCID,omitempty"`
-	SdsFileHash string `json:"sdsFileHash,omitempty"`
-}
-
-func NewSdsFile(sdsLink *SdsLinker) (files.Node, error) {
-	link := &SdsLinker{
-		OriginalCID: sdsLink.OriginalCID,
-		SdsFileHash: sdsLink.SdsFileHash,
-	}
-	b, err := json.Marshal(link)
+func NewSdsFile(sdsLink *sdsprotos.SdsLinker) (files.Node, error) {
+	b, err := proto.Marshal(sdsLink)
 	if err != nil {
 		return nil, err
 	}
@@ -25,12 +17,12 @@ func NewSdsFile(sdsLink *SdsLinker) (files.Node, error) {
 	return rfc, nil
 }
 
-func ParseLink(fileData []byte) (*SdsLinker, error) {
+func ParseLink(fileData []byte) (*sdsprotos.SdsLinker, error) {
 	if len(fileData) == 0 {
 		return nil, fmt.Errorf("empty file data")
 	}
-	link := &SdsLinker{}
-	err := json.Unmarshal(fileData, link)
+	link := &sdsprotos.SdsLinker{}
+	err := proto.Unmarshal(fileData, link)
 	if err != nil {
 		return nil, err
 	}

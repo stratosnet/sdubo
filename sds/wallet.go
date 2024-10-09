@@ -68,3 +68,21 @@ func (w *SdsWallet) SignDownloadData(sn, fileHash string) ([]byte, error) {
 	}
 	return sign, nil
 }
+
+func (w *SdsWallet) SignCreateShareLink(fileHash string) ([]byte, error) {
+	nowSec := time.Now().Unix()
+	sign, err := w.privateKey.Sign([]byte(msgutils.GetShareFileWalletSignMessage(fileHash, w.GetAddress(), nowSec)))
+	if err != nil {
+		return nil, err
+	}
+	return sign, nil
+}
+
+func (w *SdsWallet) SignGetShareLink(sn, shareId string) ([]byte, error) {
+	nowSec := time.Now().Unix()
+	sign, err := w.privateKey.Sign([]byte(msgutils.GetDownloadShareFileWalletSignMessage(shareId, w.GetAddress(), sn, nowSec)))
+	if err != nil {
+		return nil, err
+	}
+	return sign, nil
+}

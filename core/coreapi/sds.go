@@ -20,7 +20,9 @@ import (
 	options "github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/core/coreunix"
 	"github.com/ipfs/kubo/sds"
+	sdsprotos "github.com/ipfs/kubo/sds/protos"
 	"github.com/ipfs/kubo/tracing"
+	fwtypes "github.com/stratosnet/sds/framework/types"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -28,7 +30,7 @@ type SdsAPI CoreAPI
 
 // Link a path with sds, adds it to the blockstore,
 // and returns the key representing that node.
-func (api *SdsAPI) Link(ctx context.Context, sdsLink *sds.SdsLinker, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
+func (api *SdsAPI) Link(ctx context.Context, sdsLink *sdsprotos.SdsLinker, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
 	ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Link")
 	defer span.End()
 
@@ -164,6 +166,11 @@ func (api *SdsAPI) Link(ctx context.Context, sdsLink *sds.SdsLinker, opts ...opt
 		return path.ImmutablePath{}, err
 	}
 
+	_, err = api.sdsFetcher.CreateShareLink(sdsLink.SdsFileHash, sdsLink.OriginalCid)
+	if err != nil {
+		return path.ImmutablePath{}, err
+	}
+
 	nd, err := fileAdder.AddAllAndPin(ctx, mapFile)
 	if err != nil {
 		return path.ImmutablePath{}, err
@@ -179,17 +186,8 @@ func (api *SdsAPI) Link(ctx context.Context, sdsLink *sds.SdsLinker, opts ...opt
 }
 
 // Add imports the data from the reader into sds store chunks
-func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.UnixfsAddOption) (string, error) {
-	var file files.File
-
-	switch f := files_.(type) {
-	case files.File:
-		file = f
-	default:
-		return "", fmt.Errorf("not a file, abort")
-	}
-
-	fileData, err := io.ReadAll(file)
+func (api *SdsAPI) Upload(ctx context.Context, file_ files.File, opts ...options.UnixfsAddOption) (string, error) {
+	fileData, err := io.ReadAll(file_)
 	if err != nil {
 		return "", err
 	}
@@ -197,12 +195,7 @@ func (api *SdsAPI) Add(ctx context.Context, files_ files.Node, opts ...options.U
 	return api.sdsFetcher.Upload(fileData)
 }
 
-func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (*sds.SdsLinker, error) {
-	file_, ok := nd.(files.File)
-	if !ok {
-		return nil, fmt.Errorf("not a file")
-	}
-
+func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (*sdsprotos.SdsLinker, error) {
 	fsize, err := file_.Size()
 	if err != nil {
 		return nil, err
@@ -217,8 +210,12 @@ func (api *SdsAPI) Parse(ctx context.Context, nd files.Node) (*sds.SdsLinker, er
 	return sds.ParseLink(fileData)
 }
 
-func (api *SdsAPI) Get(ctx context.Context, sdsLink *sds.SdsLinker) (files.Node, error) {
-	fileData, err := api.sdsFetcher.Download(sdsLink.SdsFileHash)
+func (api *SdsAPI) Download(ctx context.Context, p path.Path) (files.File, error) {
+	fmt.Println("p.Segments()", p.Segments())
+	fmt.Println("p.Segments()[1]", p.Segments()[1])
+	shareLink := fwtypes.SetShareLink(p.Segments()[1], "")
+	fmt.Println("shareLink", shareLink)
+	fileData, err := api.sdsFetcher.DownloadFromShare(shareLink.String())
 	if err != nil {
 		return nil, err
 	}

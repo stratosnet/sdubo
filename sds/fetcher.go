@@ -93,10 +93,21 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 	return fileHash, nil
 }
 
-func (f *Fetcher) Download(fileHash string) ([]byte, error) {
+func (f *Fetcher) download(fileHash string, downloadCallback func() (*rpc_api.Result, error)) ([]byte, error) {
 	var (
 		fileSize uint64 = 0
 	)
+
+	res, err := downloadCallback()
+	if err != nil {
+		return nil, err
+	}
+
+	if fileHash == "" {
+		fileHash = res.FileHash
+	}
+
+	fmt.Printf("download res %+v\n", res)
 
 	filePath := filepath.Join(f.cfg.CacheFolder, fileHash)
 
@@ -110,17 +121,6 @@ func (f *Fetcher) Download(fileHash string) ([]byte, error) {
 
 	if fileData == nil {
 		fileData = make([]byte, 0)
-	}
-
-	oz, err := f.rpc.GetOzone(f.wallet)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := f.rpc.RequestDownload(f.wallet, oz.SequenceNumber, fileHash)
-	fmt.Println("Fetcher Download RequestDownload res - err", res, err)
-	if err != nil {
-		return nil, err
 	}
 
 	// Handle result:1 sending the content
@@ -148,4 +148,50 @@ func (f *Fetcher) Download(fileHash string) ([]byte, error) {
 	}
 
 	return fileData, nil
+}
+
+func (f *Fetcher) Download(fileHash string) ([]byte, error) {
+	callback := func() (*rpc_api.Result, error) {
+		oz, err := f.rpc.GetOzone(f.wallet)
+		if err != nil {
+			return nil, err
+		}
+		res, err := f.rpc.RequestDownload(f.wallet, oz.SequenceNumber, fileHash)
+		fmt.Println("Fetcher Download RequestDownload res - err", res, err)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	return f.download(fileHash, callback)
+}
+
+func (f *Fetcher) DownloadFromShare(shareLink string) ([]byte, error) {
+	callback := func() (*rpc_api.Result, error) {
+		oz, err := f.rpc.GetOzone(f.wallet)
+		if err != nil {
+			return nil, err
+		}
+		res, err := f.rpc.GetShared(f.wallet, oz.SequenceNumber, shareLink)
+		fmt.Println("Fetcher Download RequestDownload res - err", res, err)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	return f.download("", callback)
+}
+
+func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {
+	res, err := f.rpc.RequestShare(f.wallet, fileHash, &cid)
+	fmt.Println("Fetcher CreateShareLink RequestShare res - err", res, err)
+	if err != nil {
+		return false, err
+	}
+
+	if res.Return != rpc_api.SUCCESS {
+		return false, fmt.Errorf("share link creation failed")
+	}
+
+	return true, nil
 }
