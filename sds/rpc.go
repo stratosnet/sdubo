@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
@@ -237,7 +238,6 @@ func (rpc *Rpc) DownloadData(wallet *SdsWallet, reqid, fileHash string) (*rpc_ap
 }
 
 func (rpc *Rpc) DownloadedFileInfo(wallet *SdsWallet, reqid, fileHash string, fileSize uint64) (*rpc_api.Result, error) {
-	// param
 	req := rpc_api.ParamDownloadFileInfo{
 		FileHash: fileHash,
 		FileSize: fileSize,
@@ -246,6 +246,80 @@ func (rpc *Rpc) DownloadedFileInfo(wallet *SdsWallet, reqid, fileHash string, fi
 
 	var res rpc_api.Result
 	err := rpc.sendRequest("user_downloadedFileInfo", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) RequestShare(wallet *SdsWallet, fileHash string, cid *string) (*rpc_api.FileShareResult, error) {
+	nowSec := time.Now().Unix()
+	// signature
+	sign, err := wallet.SignCreateShareLink(fileHash)
+	if err != nil {
+		return nil, err
+	}
+	wpk, err := wallet.GetBech32PubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	req := rpc_api.ParamReqShareFile{
+		FileHash: fileHash,
+		Signature: rpc_api.Signature{
+			Address:   wallet.GetAddress(),
+			Pubkey:    wpk,
+			Signature: hex.EncodeToString(sign),
+		},
+		ReqTime: nowSec,
+	}
+
+	if cid != nil {
+		req.IpfsCid = *cid
+	}
+
+	var res rpc_api.FileShareResult
+	err = rpc.sendRequest("user_requestShare", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) GetShared(wallet *SdsWallet, sn, shareLink string) (*rpc_api.Result, error) {
+	nowSec := time.Now().Unix()
+
+	fmt.Println("ParseShareLink shareLink", shareLink)
+
+	parsedLink, err := fwtypes.ParseShareLink(shareLink)
+	fmt.Println("ParseShareLink parsedLink", parsedLink)
+	fmt.Println("ParseShareLink parsedLink err", err)
+	if err != nil {
+		return nil, err
+	}
+
+	// signature
+	sign, err := wallet.SignGetShareLink(sn, parsedLink.Link)
+	if err != nil {
+		return nil, err
+	}
+	wpk, err := wallet.GetBech32PubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	req := rpc_api.ParamReqGetShared{
+		Signature: rpc_api.Signature{
+			Address:   wallet.GetAddress(),
+			Pubkey:    wpk,
+			Signature: hex.EncodeToString(sign),
+		},
+		ReqTime:   nowSec,
+		ShareLink: shareLink,
+	}
+
+	var res rpc_api.Result
+	err = rpc.sendRequest("user_requestGetShared", req, &res)
 	if err != nil {
 		return nil, err
 	}
