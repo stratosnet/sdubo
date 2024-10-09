@@ -8,6 +8,7 @@ import (
 
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/path"
 	pin "github.com/ipfs/boxo/pinning/pinner"
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
@@ -48,7 +49,7 @@ func (dp *DagParser) Get(_ context.Context, c cid.Cid) (blocks.Block, error) {
 	return dp.dag.Get(dp.ctx, c)
 }
 
-func (dp *DagParser) Import(file files.File, doPinRoots bool) (map[cid.Cid]ipldlegacy.UniversalNode, error) {
+func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error) {
 	blockDecoder := ipldlegacy.NewDecoder()
 
 	// grab a pinlock ( which doubles as a GC lock ) so that regardless of the
@@ -127,8 +128,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (map[cid.Cid]ipldl
 		return nil, err
 	}
 
-	rMapNode := make(map[cid.Cid]ipldlegacy.UniversalNode)
-
 	if doPinRoots {
 		err = roots.ForEach(func(c cid.Cid) error {
 			// This will trigger a full read of the DAG in the pinner, to make sure we have all blocks.
@@ -149,8 +148,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (map[cid.Cid]ipldl
 				return err
 			}
 
-			rMapNode[c] = nd
-
 			return nil
 		})
 		if err != nil {
@@ -158,7 +155,12 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (map[cid.Cid]ipldl
 		}
 	}
 
-	return rMapNode, nil
+	p, err := path.NewPath("/ipfs/" + car.Roots[0].String())
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 func (dp *DagParser) Export(rootCid cid.Cid) (files.File, error) {
