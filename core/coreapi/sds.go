@@ -14,13 +14,13 @@ import (
 	ft "github.com/ipfs/boxo/ipld/unixfs"
 	"github.com/ipfs/boxo/mfs"
 	"github.com/ipfs/boxo/path"
+	cid "github.com/ipfs/go-cid"
 	cidutil "github.com/ipfs/go-cidutil"
 	ds "github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	options "github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/core/coreunix"
 	"github.com/ipfs/kubo/sds"
-	sdsprotos "github.com/ipfs/kubo/sds/protos"
 	"github.com/ipfs/kubo/tracing"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,7 +30,7 @@ type SdsAPI CoreAPI
 
 // Link a path with sds, adds it to the blockstore,
 // and returns the key representing that node.
-func (api *SdsAPI) Link(ctx context.Context, sdsLink *sdsprotos.SdsLinker, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
+func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts ...options.UnixfsAddOption) (path.ImmutablePath, error) {
 	ctx, span := tracing.Span(ctx, "CoreAPI.SdsAPI", "Link")
 	defer span.End()
 
@@ -161,12 +161,12 @@ func (api *SdsAPI) Link(ctx context.Context, sdsLink *sdsprotos.SdsLinker, opts 
 		fileAdder.SetMfsRoot(mr)
 	}
 
-	mapFile, err := sds.NewSdsFile(sdsLink)
+	mapFile, err := sds.NewSdsFile(cid, fileHash)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
 
-	_, err = api.sdsFetcher.CreateShareLink(sdsLink.SdsFileHash, sdsLink.OriginalCid)
+	_, err = api.sdsFetcher.CreateShareLink(fileHash, cid.String())
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
@@ -195,19 +195,29 @@ func (api *SdsAPI) Upload(ctx context.Context, file_ files.File, opts ...options
 	return api.sdsFetcher.Upload(fileData)
 }
 
-func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (*sdsprotos.SdsLinker, error) {
+func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutablePath, error) {
 	fsize, err := file_.Size()
 	if err != nil {
-		return nil, err
+		return path.ImmutablePath{}, err
 	}
 
 	fileData := make([]byte, fsize)
 	_, err = io.ReadFull(file_, fileData)
 	if err != nil {
-		return nil, err
+		return path.ImmutablePath{}, err
 	}
 
-	return sds.ParseLink(fileData)
+	originalCid, err := sds.ParseLink(fileData)
+	fmt.Println("Parse originalCid", originalCid)
+	if err != nil {
+		return path.ImmutablePath{}, err
+	}
+
+	ip, err := path.NewPath("/ipfs/" + originalCid.String())
+	if err != nil {
+		return path.ImmutablePath{}, err
+	}
+	return path.NewImmutablePath(ip)
 }
 
 func (api *SdsAPI) Download(ctx context.Context, p path.Path) (files.File, error) {

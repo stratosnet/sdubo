@@ -9,7 +9,9 @@ import (
 	"reflect"
 	"unsafe"
 
+	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/go-cid"
+	gocarv2 "github.com/ipld/go-car/v2"
 	mbase "github.com/multiformats/go-multibase"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/stratosnet/sds/framework/crypto"
@@ -110,4 +112,24 @@ func writeOnly(filePath string, data []byte) error {
 	}
 
 	return nil
+}
+
+func IsCAR(f files.Node) (bool, error) {
+	file, ok := f.(files.File)
+	if !ok {
+		return false, fmt.Errorf("not a file")
+	}
+
+	// TODO: Optimize and use header reading to detect cbor so we do not need to read a whole file
+	_, err := gocarv2.NewBlockReader(file)
+	if err != nil {
+		return false, err
+	}
+
+	fs := file.(io.ReadSeeker)
+	// we need to seek at initial position as reader not copied during cbor read
+	if _, err := fs.Seek(0, io.SeekStart); err != nil {
+		return false, err
+	}
+	return true, nil
 }

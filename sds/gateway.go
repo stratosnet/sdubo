@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/kubo/config"
+	fwtypes "github.com/stratosnet/sds/framework/types"
 )
 
 var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
@@ -66,15 +67,17 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path path.ImmutablePath, ra
 		return md, n, err
 	}
 
-	sdsLink, err := ParseLink(fileData)
+	originalCid, err := ParseLink(fileData)
 	if err != nil {
 		logger.Errorf("failed to parse sds file hash: %s", err)
 		return md, n, err
 	}
 
-	sdsFileData, err := sb.fetcher.Download(sdsLink.SdsFileHash)
+	shareLink := fwtypes.SetShareLink(originalCid.String(), "")
+
+	sdsFileData, err := sb.fetcher.DownloadFromShare(shareLink.String())
 	if err != nil {
-		logger.Errorf("failed to download file '%s' from sds: %s", sdsLink.SdsFileHash, err)
+		logger.Errorf("failed to download share car file '%s' from sds: %s", shareLink.String(), err)
 		return md, n, err
 	}
 
