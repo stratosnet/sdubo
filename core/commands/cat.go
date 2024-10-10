@@ -5,20 +5,16 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 
+	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
 	"github.com/ipfs/kubo/core/commands/cmdutils"
-	"github.com/ipfs/kubo/sds"
 
 	"github.com/cheggaaa/pb"
 	"github.com/ipfs/boxo/files"
-	"github.com/ipfs/boxo/path"
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	iface "github.com/ipfs/kubo/core/coreiface"
-	"github.com/ipfs/kubo/core/coreiface/options"
 )
 
 const (
@@ -52,6 +48,11 @@ var CatCmd = &cmds.Command{
 			return err
 		}
 
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
+
 		offset, _ := req.Options[offsetOptionName].(int64)
 		if offset < 0 {
 			return fmt.Errorf("cannot specify negative offset")
@@ -71,7 +72,7 @@ var CatCmd = &cmds.Command{
 			return err
 		}
 
-		readers, length, err := cat(nd, req.Context, api, req.Arguments, int64(offset), int64(max))
+		readers, length, err := cat(nd, cfg, req.Context, api, req.Arguments, int64(offset), int64(max))
 		if err != nil {
 			return err
 		}
@@ -132,12 +133,7 @@ var CatCmd = &cmds.Command{
 	},
 }
 
-func cat(nd *core.IpfsNode, ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64) ([]io.Reader, uint64, error) {
-	// cfg, err := nd.Repo.Config()
-	// if err != nil {
-	// 	return nil, 0, err
-	// }
-
+func cat(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64) ([]io.Reader, uint64, error) {
 	readers := make([]io.Reader, 0, len(paths))
 	length := uint64(0)
 	if max == 0 {
@@ -149,49 +145,10 @@ func cat(nd *core.IpfsNode, ctx context.Context, api iface.CoreAPI, paths []stri
 			return nil, 0, err
 		}
 
-		// TODO: Add dag check so to forward map cid to original cid
-		// f, err := api.Unixfs().Get(ctx, p)
-		// if err != nil {
-		// 	if !cfg.Sds.Enabled {
-		// 		return nil, 0, err
-		// 	}
-
-		sf, err := api.Sds().Download(ctx, p)
-		fmt.Println("sds download err", err)
+		f, err := getCarOrResolve(nd, cfg, ctx, api, p)
 		if err != nil {
 			return nil, 0, err
 		}
-		// offline api after to ensure we do not reach out to the network for any reason
-		api, err = api.WithOptions(options.Api.Offline(true))
-		if err != nil {
-			return nil, 0, err
-		}
-
-		sdsP, err := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning).Import(sf, true)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		// for folder + file match
-		if len(p.Segments()) > 2 {
-			c := make([]string, len(p.Segments())-2)
-			copy(c, p.Segments()[2:])
-
-			sdsP, err = path.NewPath(filepath.Join(sdsP.String(), strings.Join(c, "/")))
-			if err != nil {
-				return nil, 0, err
-			}
-		}
-
-		fmt.Printf("p %+v\n", p)
-		fmt.Printf("sdsP %+v\n", sdsP)
-
-		f, err := api.Unixfs().Get(ctx, sdsP)
-		fmt.Println("unixfs get err", err)
-		if err != nil {
-			return nil, 0, err
-		}
-		// }
 
 		var file files.File
 		switch f := f.(type) {

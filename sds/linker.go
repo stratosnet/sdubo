@@ -5,11 +5,16 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ipfs/boxo/files"
+	cid "github.com/ipfs/go-cid"
 	sdsprotos "github.com/ipfs/kubo/sds/protos"
 )
 
-func NewSdsFile(sdsLink *sdsprotos.SdsLinker) (files.Node, error) {
-	b, err := proto.Marshal(sdsLink)
+func NewSdsFile(cid cid.Cid, fileHash string) (files.Node, error) {
+	link := &sdsprotos.SdsLinker{
+		OriginalCid: cid.String(),
+		SdsFileHash: fileHash,
+	}
+	b, err := proto.Marshal(link)
 	if err != nil {
 		return nil, err
 	}
@@ -17,15 +22,15 @@ func NewSdsFile(sdsLink *sdsprotos.SdsLinker) (files.Node, error) {
 	return rfc, nil
 }
 
-func ParseLink(fileData []byte) (*sdsprotos.SdsLinker, error) {
-	if len(fileData) == 0 {
-		return nil, fmt.Errorf("empty file data")
+func ParseLink(data []byte) (cid.Cid, error) {
+	if len(data) == 0 {
+		return cid.Cid{}, fmt.Errorf("empty file data")
 	}
 	link := &sdsprotos.SdsLinker{}
-	err := proto.Unmarshal(fileData, link)
+	err := proto.Unmarshal(data, link)
 	if err != nil {
-		return nil, err
+		return cid.Cid{}, err
 	}
 
-	return link, nil
+	return cid.Parse(link.OriginalCid)
 }
