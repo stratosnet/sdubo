@@ -86,6 +86,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	var previous blocks.Block
 
 	car, err := gocarv2.NewBlockReader(file)
+	fmt.Println("Import NewBlockReader car err", car, err)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +94,8 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	for _, c := range car.Roots {
 		roots.Add(c)
 	}
+
+	fmt.Println("Import car.Roots", car.Roots)
 
 	for {
 		block, err := car.Next()
@@ -108,6 +111,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 
 		// the double-decode is suboptimal, but we need it for batching
 		nd, err := blockDecoder.DecodeNode(dp.ctx, block)
+		fmt.Println("Import DecodeNode nd err", nd, err)
 		if err != nil {
 			return nil, importError(previous, block, err)
 		}
@@ -118,10 +122,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 		blockCount++
 		blockBytesCount += uint64(len(block.RawData()))
 		previous = block
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	if err := batch.Commit(); err != nil {
@@ -156,6 +156,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	}
 
 	p, err := path.NewPath("/ipfs/" + car.Roots[0].String())
+	fmt.Println("Import NewPath p err", p, err)
 	if err != nil {
 		return nil, err
 	}
