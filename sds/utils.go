@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"unsafe"
 
 	"github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
 	gocarv2 "github.com/ipld/go-car/v2"
 	mbase "github.com/multiformats/go-multibase"
@@ -132,4 +135,27 @@ func IsCAR(f files.Node) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// ModifySdsCARPath modifies path of root cid from dag in order to get it later from ipfs
+// Example:
+//
+// /ipfs/QmbLQrW85vfWyySX76dwyxxAzz4tcsPk6tgTuLDQjNYxE7/1.txt -> /ipfs/Qmb5WoZiXqWpfHojUf7Yhayracay5TjvCTE4cNAjXwuvVY/1.txt
+// means to refer on real cid to match edge file
+// othervise do nothing in case of
+// /ipfs/QmbLQrW85vfWyySX76dwyxxAzz4tcsPk6tgTuLDQjNYxE7 -> /ipfs/QmbLQrW85vfWyySX76dwyxxAzz4tcsPk6tgTuLDQjNYxE7
+// as it is a directory
+func ModifySdsCARPath(dstp path.Path, srcp path.Path) (path.Path, error) {
+	// for folder + file match
+	if len(srcp.Segments()) > 2 {
+		c := make([]string, len(srcp.Segments())-2)
+		copy(c, srcp.Segments()[2:])
+
+		dstp, err := path.NewPath(filepath.Join(dstp.String(), strings.Join(c, "/")))
+		if err != nil {
+			return nil, err
+		}
+		return dstp, nil
+	}
+	return dstp, nil
 }
