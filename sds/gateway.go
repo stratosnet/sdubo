@@ -45,8 +45,14 @@ func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGSe
 }
 
 func readAndResetGatewayResponse(n *gateway.GetResponse) ([]byte, error) {
-	fileReader := getDynamicField(n, "bytes").(io.ReadCloser)
-	fileSize := getDynamicField(n, "bytesSize").(int64)
+	fileReader, ok := getDynamicField(n, "bytes").(io.ReadCloser)
+	if !ok {
+		return []byte{}, fmt.Errorf("not a file reader")
+	}
+	fileSize, ok := getDynamicField(n, "bytesSize").(int64)
+	if !ok {
+		return []byte{}, fmt.Errorf("no file size")
+	}
 
 	fileData := make([]byte, fileSize)
 
@@ -76,166 +82,97 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 	var (
 		doPinRoots = false
 		fileData   []byte
+		errS       error
 	)
 
 	// NOTE: Check first if file exists in ipfs
-	_, n, err := sb.b.Get(ctx, path_, ranges...)
+	md, n, err := sb.b.Get(ctx, path_, ranges...)
+	fmt.Printf("SdsBlocksBackend Get path_ %+v\n", path_)
+	fmt.Printf("SdsBlocksBackend Get md %+v\n", md)
+	fmt.Printf("SdsBlocksBackend Get n %+v\n", n)
+	fmt.Printf("SdsBlocksBackend Get err %+v\n", err)
 	// Not exist, trying to get from sds
 	if err != nil {
 		if !sb.cfg.Enabled {
-			return gateway.ContentPathMetadata{}, nil, err
+			return md, n, err
 		}
 
+		// TODO: Maybe to get from ipfs also first?
 		shareLink := fwtypes.SetShareLink(path_.Segments()[1], "")
 
-		fileData, err = sb.fetcher.DownloadFromShare(shareLink.String())
-		if err != nil {
-			logger.Errorf("failed to download share car file '%s' from sds: %s", shareLink.String(), err)
-			return gateway.ContentPathMetadata{}, nil, err
-		}
-
+		// no care of error
+		fileData, _ = sb.fetcher.DownloadFromShare(shareLink.String())
 		// in this case we should pin to store into local block tree
 		doPinRoots = true
 	} else if sb.cfg.Enabled {
 		// in case file found on ipfs, check if it is a mapping file and get original car file
-		// NOTE: Risk of broke API with mailware map file?
-
 		// getting file data from gateway
-		fileData, err = readAndResetGatewayResponse(n)
-		if err != nil {
-			return gateway.ContentPathMetadata{}, nil, err
-		}
-
-		originalCid, err := ParseLink(fileData)
-		fmt.Printf("originalCid %+v\n", originalCid)
-		if err == nil {
-			oPath, err := path.NewPath("/ipfs/" + originalCid.String())
-			if err != nil {
-				return gateway.ContentPathMetadata{}, nil, err
-			}
-			path_, err := path.NewImmutablePath(oPath)
-			if err != nil {
-				return gateway.ContentPathMetadata{}, nil, err
-			}
-			fmt.Printf("path_ %+v\n", path_)
-			_, n, err = sb.b.Get(ctx, path_, ranges...)
-			if err != nil {
-				return gateway.ContentPathMetadata{}, nil, err
-			}
-			// update gateway content
-			fileData, err = readAndResetGatewayResponse(n)
-			if err != nil {
-				return gateway.ContentPathMetadata{}, nil, err
+		fileData, errS = readAndResetGatewayResponse(n)
+		fmt.Println("fileData errS", errS)
+		if errS == nil {
+			originalCid, errS := ParseLink(fileData)
+			fmt.Printf("originalCid %+v\n", originalCid)
+			if errS == nil {
+				oPath, errS := path.NewPath("/ipfs/" + originalCid.String())
+				if err != nil {
+					return gateway.ContentPathMetadata{}, nil, errS
+				}
+				path_, errS = path.NewImmutablePath(oPath)
+				if errS != nil {
+					return gateway.ContentPathMetadata{}, nil, errS
+				}
+				fmt.Printf("path_ %+v\n", path_)
+				md, n, err = sb.b.Get(ctx, path_, ranges...)
+				if err != nil {
+					return md, n, err
+				}
+				// update gateway content
+				fileData, errS = readAndResetGatewayResponse(n)
+				if errS != nil {
+					return md, n, nil
+				}
 			}
 		}
 	}
 
-	// TODO: Problematic file content read
+	fmt.Println("fileData", fileData)
+
 	isCar, _ := IsCAR(files.NewBytesFile(fileData))
 	fmt.Printf("isCar %+v\n", isCar)
 	if isCar {
-		sdsP, err := NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(files.NewBytesFile(fileData), doPinRoots)
-		if err != nil {
-			return gateway.ContentPathMetadata{}, nil, err
+		sdsP, errS := NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(files.NewBytesFile(fileData), doPinRoots)
+		if errS != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		sdsP, err = ModifySdsCARPath(sdsP, path_)
-		if err != nil {
-			return gateway.ContentPathMetadata{}, nil, err
+		fmt.Printf("sdsP (before) %+v\n", sdsP)
+		sdsP, errS = ModifySdsCARPath(sdsP, path_)
+		fmt.Printf("sdsP (after) %+v\n", sdsP)
+		if errS != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		path_, err = path.NewImmutablePath(sdsP)
-		if err != nil {
-			return gateway.ContentPathMetadata{}, nil, err
+		path_, errS = path.NewImmutablePath(sdsP)
+		if errS != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		return sb.b.Get(ctx, path_, ranges...)
+		md, n, err = sb.b.Get(ctx, path_, ranges...)
+		fmt.Printf("SdsBlocksBackend Get (CAR) path_ %+v\n", path_)
+		fmt.Printf("SdsBlocksBackend Get (CAR) md %+v\n", md)
+		fmt.Printf("SdsBlocksBackend Get (CAR) n %+v\n", n)
+		fmt.Printf("SdsBlocksBackend Get (CAR) err %+v\n", err)
+		if err != nil {
+			return md, n, err
+		}
 	}
 
-	rfc := files.NewBytesFile(fileData)
-	fmt.Printf("rfc %+v\n", rfc)
-	fileSize, err := rfc.Size()
-	if err != nil {
-		return gateway.ContentPathMetadata{}, nil, err
-	}
+	fmt.Println("md total", md)
+	fmt.Println("n total", n)
+	fmt.Println("err total", err)
 
-	n = gateway.NewGetResponseFromReader(rfc, fileSize)
-	md, err := sb.b.ResolvePath(ctx, path_)
-
-	fmt.Println("doPinRoots", doPinRoots)
-	fmt.Println("fileData", fileData)
-
-	fmt.Printf("GET n %+v\n", n)
-	fmt.Printf("GET md %+v\n", md)
-	if err != nil {
-		return gateway.ContentPathMetadata{}, nil, err
-	}
-
-	return md, n, nil
+	return md, n, err
 }
-
-// func (sb *SdsBlocksBackend) GetLegacy(ctx context.Context, path path.ImmutablePath, ranges ...gateway.ByteRange) (gateway.ContentPathMetadata, *gateway.GetResponse, error) {
-// 	md, n, err := sb.b.Get(ctx, path, ranges...)
-// 	if err != nil {
-// 		return md, n, err
-// 	}
-
-// 	fileReader := getDynamicField(n, "bytes").(io.ReadCloser)
-// 	fileSize := getDynamicField(n, "bytesSize").(int64)
-
-// 	fileData := make([]byte, fileSize)
-
-// 	if _, err = fileReader.Read(fileData); err != nil {
-// 		return md, n, err
-// 	}
-
-// 	// NOTE: Required as we read so cursor have been moved, so content length will be missmatch
-// 	fs := fileReader.(io.ReadSeeker)
-// 	if _, err = fs.Seek(0, io.SeekStart); err != nil {
-// 		return md, n, err
-// 	}
-
-// 	originalCid, err := ParseLink(fileData)
-// 	if err != nil {
-// 		logger.Errorf("failed to parse sds file hash: %s", err)
-// 		return md, n, err
-// 	}
-
-// 	shareLink := fwtypes.SetShareLink(originalCid.String(), "")
-
-// 	sdsFileData, err := sb.fetcher.DownloadFromShare(shareLink.String())
-// 	if err != nil {
-// 		logger.Errorf("failed to download share car file '%s' from sds: %s", shareLink.String(), err)
-// 		return md, n, err
-// 	}
-
-// 	rfc := files.NewBytesFile(sdsFileData)
-
-// 	_, err = NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(rfc, true)
-// 	if err != nil {
-// 		return md, n, err
-// 	}
-
-// 	// nd, ok := ndMap[path.RootCid()]
-// 	// if !ok {
-// 	// 	return md, n, fmt.Errorf("CAR for sds not found")
-// 	// }
-
-// 	// sdsFileSize, err := rfc.Size()
-// 	// if err != nil {
-// 	// 	return md, n, err
-// 	// }
-
-// 	// n = gateway.NewGetResponseFromReader(rfc, sdsFileSize)
-
-// 	// TODO: Refactor after and remove up block load
-// 	md, n, err = sb.b.Get(ctx, path, ranges...)
-// 	if err != nil {
-// 		return md, n, err
-// 	}
-
-// 	return md, n, nil
-// }
 
 func (sb *SdsBlocksBackend) GetAll(ctx context.Context, path path.ImmutablePath) (gateway.ContentPathMetadata, files.Node, error) {
 	return sb.b.GetAll(ctx, path)
