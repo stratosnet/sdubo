@@ -300,11 +300,14 @@ See 'dag export' and 'dag import' for more information.
 			_, dir := addit.Node().(files.Directory)
 			errCh := make(chan error, 1)
 			events := make(chan interface{}, adderOutChanSize)
-			opts[len(opts)-1] = options.Unixfs.Events(events)
+			sdsEvents := make(chan interface{}, adderOutChanSize)
 
 			go func() {
+				opts[len(opts)-1] = options.Unixfs.Events(events)
+
 				var err error
 				defer close(events)
+				defer close(sdsEvents)
 				pathAdded, err := api.Unixfs().Add(req.Context, addit.Node(), opts...)
 				fmt.Println("ipfs add unixfs add err", err)
 				if err != nil {
@@ -326,7 +329,15 @@ See 'dag export' and 'dag import' for more information.
 						return
 					}
 
-					_, err = api.Sds().Link(req.Context, pathAdded.RootCid(), sdsFileHash, opts...)
+					mapFile, err := api.Sds().Link(req.Context, pathAdded.RootCid(), sdsFileHash)
+					if err != nil {
+						errCh <- err
+						return
+					}
+
+					opts[len(opts)-1] = options.Unixfs.Events(sdsEvents)
+
+					_, err = api.Unixfs().Add(req.Context, mapFile, opts...)
 					fmt.Println("ipfs add sds link err", err)
 					if err != nil {
 						errCh <- err
@@ -390,7 +401,12 @@ See 'dag export' and 'dag import' for more information.
 				errCh <- err
 			}()
 
-			for event := range events {
+			rEvts := events
+			if cfg.Sds.Enabled {
+				rEvts = sdsEvents
+			}
+
+			for event := range rEvts {
 				output, ok := event.(*coreiface.AddEvent)
 				if !ok {
 					return errors.New("unknown event type")
