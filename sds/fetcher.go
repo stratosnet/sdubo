@@ -173,7 +173,7 @@ func (f *Fetcher) DownloadFromShare(shareLink string) ([]byte, error) {
 			return nil, err
 		}
 		res, err := f.rpc.GetShared(f.wallet, oz.SequenceNumber, shareLink)
-		fmt.Println("Fetcher Download RequestDownload res - err", res, err)
+		fmt.Println("Fetcher Download DownloadFromShare res - err", res, err)
 		if err != nil {
 			return nil, err
 		}

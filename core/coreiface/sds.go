@@ -13,9 +13,8 @@ import (
 type SdsAPI interface {
 	// Add imports the data from the reader into sds store chunks
 	Upload(context.Context, files.File, ...options.UnixfsAddOption) (string, error)
-	// Link a path with sds, adds it to the blockstore,
-	// and returns the key representing that node.
-	Link(context.Context, cid.Cid, string, ...options.UnixfsAddOption) (path.ImmutablePath, error)
+	// Link a path with sds as share link
+	Link(context.Context, cid.Cid, string, ...options.UnixfsAddOption) (files.File, error)
 	// Parse file to get sds file hash
 	Parse(context.Context, files.File) (path.ImmutablePath, error)
 	// Get returns a read-only handle to a file tree referenced by a file hash
