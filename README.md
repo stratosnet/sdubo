@@ -2,11 +2,11 @@
   <br>
   <a href="https://docs.ipfs.tech/how-to/command-line-quick-start/"><img src="https://user-images.githubusercontent.com/157609/250148884-d6d12db8-fdcf-4be3-8546-2550b69845d8.png" alt="Kubo logo" title="Kubo logo" width="200"></a>
   <br>
-  Kubo: IPFS Implementation in GO
+  Sdubo: IPFS Implementation with SDS in GO
   <br>
 </h1>
 
-<p align="center" style="font-size: 1.2rem;">The first implementation of IPFS.</p>
+<p align="center" style="font-size: 1.2rem;">The first implementation of IPFS and SDS.</p>
 
 <p align="center">
   <a href="https://ipfs.tech"><img src="https://img.shields.io/badge/project-IPFS-blue.svg?style=flat-square" alt="Official Part of IPFS Project"></a>
@@ -19,9 +19,9 @@
 
 <hr />
 
-## What is Kubo?
+## What is Sdubo?
 
-Kubo was the first IPFS implementation and is the most widely used one today. Implementing the *Interplanetary Filesystem* - the Web3 standard for content-addressing, interoperable with HTTP. Thus powered by IPLD's data models and the libp2p for network communication. Kubo is written in Go.
+Kubo was the first IPFS implementation and is the most widely used one today. Implementing the *Interplanetary Filesystem* - the Web3 standard for content-addressing, interoperable with HTTP. Thus powered by IPLD's data models and the libp2p for network communication. Kubo is written in Go. Combining with SDS files and folders automatically chunked across different nodes and always could recoverable.
 
 Featureset
 - Runs an IPFS-Node as a network service that is part of LAN and WAN DHT
@@ -59,7 +59,7 @@ Before opening an issue, consider using one of the following locations to ensure
 
 ## Table of Contents
 
-- [What is Kubo?](#what-is-kubo)
+- [What is Sdubo?](#what-is-sdubo)
 - [What is IPFS?](#what-is-ipfs)
 - [Next milestones](#next-milestones)
 - [Table of Contents](#table-of-contents)
