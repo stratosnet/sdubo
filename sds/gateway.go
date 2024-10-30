@@ -85,8 +85,12 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		errS       error
 	)
 
+	// NOTE: tmp fix for non existing cid as we will go to sds, this should be fine for now
+	ctx2, cancelFn := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelFn()
+
 	// NOTE: Check first if file exists in ipfs
-	md, n, err := sb.b.Get(ctx, path_, ranges...)
+	md, n, err := sb.b.Get(ctx2, path_, ranges...)
 	fmt.Printf("SdsBlocksBackend Get path_ %+v\n", path_)
 	fmt.Printf("SdsBlocksBackend Get md %+v\n", md)
 	fmt.Printf("SdsBlocksBackend Get n %+v\n", n)
