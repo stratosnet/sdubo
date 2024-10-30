@@ -33,7 +33,7 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 		f = sf.(files.Node)
 		// in this case we should pin to store into local block tree
 		doPinRoots = true
-	} else {
+	} else if cfg.Sds.Enabled {
 		// in case file found on ipfs, check if it is a mapping file and get original car file
 		// NOTE: Risk of broke API with mailware map file?
 		mFile, ok := f.(files.File)

@@ -463,9 +463,17 @@ See 'dag export' and 'dag import' for more information.
 			}()
 
 			rEvts := events
+			sEvts := sdsEvents
 			if cfg.Sds.Enabled {
 				rEvts = sdsEvents
+				sEvts = events
 			}
+
+			go func() {
+				// NOTE: As it has capacity, let's also iterate this chan
+				for range sEvts {
+				}
+			}()
 
 			for event := range rEvts {
 				output, ok := event.(*coreiface.AddEvent)
