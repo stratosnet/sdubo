@@ -5,15 +5,35 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ipfs/kubo/config"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
+type fqueue struct {
+	ch     chan interface{} // Channel to hold the queue elements in FIFO order
+	ticker *time.Ticker     // Ticker for re-try mechanics
+}
+
+// newFqueue creates a new instance of fqueue with a specific size
+func newFqueue(size int) *fqueue {
+	return &fqueue{
+		ch:     make(chan interface{}, size),
+		ticker: time.NewTicker(5 * time.Second),
+	}
+}
+
+// Queue returns the channel of the fqueue
+func (q *fqueue) Queue() chan interface{} {
+	return q.ch
+}
+
 type Fetcher struct {
 	cfg    *config.Sds
 	wallet *SdsWallet
 	rpc    *Rpc
+	q      *fqueue
 }
 
 func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
@@ -26,16 +46,42 @@ func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
 		return nil, err
 	}
 
-	return &Fetcher{
+	f := &Fetcher{
 		cfg:    cfg,
 		wallet: wallet,
 		rpc:    rpc,
-	}, nil
+		q:      newFqueue(100),
+	}
+	go f.loop()
+
+	return f, nil
 }
 
 func isDublErr(ret string) bool {
 	// this is sp error, means that file already exist and uploaded, so we could just link
 	return strings.Contains(ret, "Same file with the name")
+}
+
+func (f *Fetcher) loop() {
+	for item := range f.q.Queue() {
+		fmt.Println("loop execute item", item)
+		// NOTE: Should I have auto-retry? I guess not at this moment
+		f.execute(item)
+	}
+}
+
+func (f *Fetcher) execute(item interface{}) bool {
+	fn, ok := item.(func() error)
+	if !ok {
+		fmt.Println("Not pseudo func")
+		return false
+	}
+
+	fmt.Println("Exec fn")
+	if err := fn(); err != nil {
+		return false
+	}
+	return true
 }
 
 func (f *Fetcher) Upload(fileData []byte) (string, error) {
@@ -183,15 +229,22 @@ func (f *Fetcher) DownloadFromShare(shareLink string) ([]byte, error) {
 }
 
 func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {
-	res, err := f.rpc.RequestShare(f.wallet, fileHash, &cid)
-	fmt.Println("Fetcher CreateShareLink RequestShare res - err", res, err)
-	if err != nil {
-		return false, err
+	fn := func() error {
+		res, err := f.rpc.RequestShare(f.wallet, fileHash, &cid)
+		fmt.Println("Fetcher CreateShareLink RequestShare res - err", res, err)
+		if err != nil {
+			return err
+		}
+
+		if res.Return != rpc_api.SUCCESS {
+			return fmt.Errorf("share link creation failed")
+		}
+
+		return nil
 	}
 
-	if res.Return != rpc_api.SUCCESS {
-		return false, fmt.Errorf("share link creation failed")
-	}
+	fmt.Println("Adding to queue")
+	f.q.Queue() <- fn
 
 	return true, nil
 }
