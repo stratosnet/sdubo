@@ -67,10 +67,7 @@ func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutableP
 }
 
 func (api *SdsAPI) Download(ctx context.Context, p path.Path) (files.File, error) {
-	fmt.Println("p.Segments()", p.Segments())
-	fmt.Println("p.Segments()[1]", p.Segments()[1])
 	shareLink := fwtypes.SetShareLink(p.Segments()[1], "")
-	fmt.Println("shareLink", shareLink)
 	fileData, err := api.sdsFetcher.DownloadFromShare(shareLink.String())
 	if err != nil {
 		return nil, err

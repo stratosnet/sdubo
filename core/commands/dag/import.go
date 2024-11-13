@@ -85,9 +85,6 @@ func dagImport(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment
 		return fmt.Errorf("import failed: %w", err)
 	}
 
-	fmt.Println("doPinRoots", doPinRoots)
-	fmt.Printf("req.Files %+v\n", req.Files)
-
 	it := req.Files.Entries()
 	for it.Next() {
 		file := files.FileFromEntry(it)
@@ -113,7 +110,6 @@ func dagImport(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment
 			}
 
 			for _, c := range car.Roots {
-				fmt.Println("c root", c)
 				roots.Add(c)
 			}
 
@@ -133,8 +129,6 @@ func dagImport(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment
 				if err != nil {
 					return importError(previous, block, err)
 				}
-
-				fmt.Printf("decode node %+v\n", nd)
 
 				if err := batch.Add(req.Context, nd); err != nil {
 					return importError(previous, block, err)

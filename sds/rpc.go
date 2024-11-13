@@ -289,11 +289,7 @@ func (rpc *Rpc) RequestShare(wallet *SdsWallet, fileHash string, cid *string) (*
 func (rpc *Rpc) GetShared(wallet *SdsWallet, sn, shareLink string) (*rpc_api.Result, error) {
 	nowSec := time.Now().Unix()
 
-	fmt.Println("ParseShareLink shareLink", shareLink)
-
 	parsedLink, err := fwtypes.ParseShareLink(shareLink)
-	fmt.Println("ParseShareLink parsedLink", parsedLink)
-	fmt.Println("ParseShareLink parsedLink err", err)
 	if err != nil {
 		return nil, err
 	}
