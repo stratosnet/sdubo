@@ -64,7 +64,6 @@ func isDublErr(ret string) bool {
 
 func (f *Fetcher) loop() {
 	for item := range f.q.Queue() {
-		fmt.Println("loop execute item", item)
 		// NOTE: Should I have auto-retry? I guess not at this moment
 		f.execute(item)
 	}
@@ -73,11 +72,9 @@ func (f *Fetcher) loop() {
 func (f *Fetcher) execute(item interface{}) bool {
 	fn, ok := item.(func() error)
 	if !ok {
-		fmt.Println("Not pseudo func")
 		return false
 	}
 
-	fmt.Println("Exec fn")
 	if err := fn(); err != nil {
 		return false
 	}
@@ -153,8 +150,6 @@ func (f *Fetcher) download(fileHash string, downloadCallback func() (*rpc_api.Re
 		fileHash = res.FileHash
 	}
 
-	fmt.Printf("download res %+v\n", res)
-
 	filePath := filepath.Join(f.cfg.CacheFolder, fileHash)
 
 	fileData, err := readFile(filePath)
@@ -203,7 +198,6 @@ func (f *Fetcher) Download(fileHash string) ([]byte, error) {
 			return nil, err
 		}
 		res, err := f.rpc.RequestDownload(f.wallet, oz.SequenceNumber, fileHash)
-		fmt.Println("Fetcher Download RequestDownload res - err", res, err)
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +237,6 @@ func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {
 		return nil
 	}
 
-	fmt.Println("Adding to queue")
 	f.q.Queue() <- fn
 
 	return true, nil
