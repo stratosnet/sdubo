@@ -91,10 +91,6 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 
 	// NOTE: Check first if file exists in ipfs
 	md, n, err := sb.b.Get(ctx2, path_, ranges...)
-	fmt.Printf("SdsBlocksBackend Get path_ %+v\n", path_)
-	fmt.Printf("SdsBlocksBackend Get md %+v\n", md)
-	fmt.Printf("SdsBlocksBackend Get n %+v\n", n)
-	fmt.Printf("SdsBlocksBackend Get err %+v\n", err)
 	// Not exist, trying to get from sds
 	if err != nil {
 		if !sb.cfg.Enabled {
@@ -112,10 +108,8 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		// in case file found on ipfs, check if it is a mapping file and get original car file
 		// getting file data from gateway
 		fileData, errS = readAndResetGatewayResponse(n)
-		fmt.Println("fileData errS", errS)
 		if errS == nil {
 			originalCid, errS := ParseLink(fileData)
-			fmt.Printf("originalCid %+v\n", originalCid)
 			if errS == nil {
 				oPath, errS := path.NewPath("/ipfs/" + originalCid.String())
 				if err != nil {
@@ -125,7 +119,6 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}
-				fmt.Printf("path_ %+v\n", path_)
 				md, n, err = sb.b.Get(ctx, path_, ranges...)
 				if err != nil {
 					return md, n, err
@@ -139,19 +132,14 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 	}
 
-	fmt.Println("fileData", fileData)
-
 	isCar, _ := IsCAR(files.NewBytesFile(fileData))
-	fmt.Printf("isCar %+v\n", isCar)
 	if isCar {
 		sdsP, errS := NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(files.NewBytesFile(fileData), doPinRoots)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		fmt.Printf("sdsP (before) %+v\n", sdsP)
 		sdsP, errS = ModifySdsCARPath(sdsP, path_)
-		fmt.Printf("sdsP (after) %+v\n", sdsP)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
@@ -162,18 +150,10 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 
 		md, n, err = sb.b.Get(ctx, path_, ranges...)
-		fmt.Printf("SdsBlocksBackend Get (CAR) path_ %+v\n", path_)
-		fmt.Printf("SdsBlocksBackend Get (CAR) md %+v\n", md)
-		fmt.Printf("SdsBlocksBackend Get (CAR) n %+v\n", n)
-		fmt.Printf("SdsBlocksBackend Get (CAR) err %+v\n", err)
 		if err != nil {
 			return md, n, err
 		}
 	}
-
-	fmt.Println("md total", md)
-	fmt.Println("n total", n)
-	fmt.Println("err total", err)
 
 	return md, n, err
 }

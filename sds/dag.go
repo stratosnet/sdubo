@@ -86,7 +86,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	var previous blocks.Block
 
 	car, err := gocarv2.NewBlockReader(file)
-	fmt.Println("Import NewBlockReader car err", car, err)
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +93,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	for _, c := range car.Roots {
 		roots.Add(c)
 	}
-
-	fmt.Println("Import car.Roots", car.Roots)
 
 	for {
 		block, err := car.Next()
@@ -111,14 +108,11 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 
 		// the double-decode is suboptimal, but we need it for batching
 		nd, err := blockDecoder.DecodeNode(dp.ctx, block)
-		fmt.Println("Import DecodeNode nd err", nd, err)
 		if err != nil {
 			return nil, importError(previous, block, err)
 		}
 
-		fmt.Println("Import batch Add before")
 		err = batch.Add(dp.ctx, nd)
-		fmt.Println("Import batch Add err", err)
 		if err != nil {
 			return nil, importError(previous, block, err)
 		}
@@ -128,7 +122,6 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	}
 
 	err = batch.Commit()
-	fmt.Println("Import batch Commit err", err)
 	if err != nil {
 		return nil, err
 	}
@@ -138,41 +131,31 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 			// This will trigger a full read of the DAG in the pinner, to make sure we have all blocks.
 			// Ideally we would do colloring of the pinning state while importing the blocks
 			// and ensure the gray bucket is empty at the end (or use the network to download missing blocks).
-			fmt.Println("Import bs Get start")
 			block, err := dp.bs.Get(dp.ctx, c)
-			fmt.Println("Import bs Get end")
 			if err != nil {
 				return err
 			}
-			fmt.Println("Import blockDecoder DecodeNode start")
 			nd, err := blockDecoder.DecodeNode(dp.ctx, block)
-			fmt.Println("Import blockDecoder DecodeNode end")
 			if err != nil {
 				return err
 			}
-			fmt.Println("Import pin Pin start")
 			err = dp.pin.Pin(dp.ctx, nd, true, "")
-			fmt.Println("Import pin Pin end")
 			if err != nil {
 				return err
 			}
-			fmt.Println("Import pin Flush start")
 			err = dp.pin.Flush(dp.ctx)
-			fmt.Println("Import pin Flush end")
 			if err != nil {
 				return err
 			}
 
 			return nil
 		})
-		fmt.Println("Import roots.ForEach err", err)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	p, err := path.NewPath("/ipfs/" + car.Roots[0].String())
-	fmt.Println("Import NewPath p err", p, err)
 	if err != nil {
 		return nil, err
 	}
