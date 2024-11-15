@@ -965,6 +965,8 @@ github.com/spf13/jwalterweatherman v1.0.0/go.mod h1:cQK4TGJAtQXfYWX+Ddv3mKDzgVb6
 github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DMA2s=
 github.com/src-d/envconfig v1.0.0/go.mod h1:Q9YQZ7BKITldTBnoxsE5gOeB5y66RyPXeue/R4aaNBc=
+github.com/stratosnet/sds v0.12.3-0.20241003160141-f4d09f0049e9 h1:24ygjsu1DJUZ1Y4xYVSWM7VGmgrNxgys9n18Zjh5lhM=
+github.com/stratosnet/sds v0.12.3-0.20241003160141-f4d09f0049e9/go.mod h1:gvwxoiSiv4v8PK8G3ODAiNzQdAMI+yWRnbPE+jP/wiA=
 github.com/stratosnet/sds/framework v0.0.0-20241024172020-1c91ede1d55d h1:uXFgA2G4T81E9FYHRvwqm1uqox4/D1CjFyE9PmX/WfA=
 github.com/stratosnet/sds/framework v0.0.0-20241024172020-1c91ede1d55d/go.mod h1:ekY0nhva8+LAhICimzEAaQJdgG356TO+AR6B1B3oFuQ=
 github.com/stratosnet/sds/sds-msg v0.0.0-20241024172020-1c91ede1d55d h1:Ztg/SlpUQ+jlg4tHbS3juDPXGkpos0LJoghPvZX1ays=
