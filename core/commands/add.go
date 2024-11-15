@@ -361,49 +361,17 @@ See 'dag export' and 'dag import' for more information.
 			_, dir := addit.Node().(files.Directory)
 			errCh := make(chan error, 1)
 			events := make(chan interface{}, adderOutChanSize)
-			sdsEvents := make(chan interface{}, adderOutChanSize)
 
 			go func() {
 				opts[len(opts)-1] = options.Unixfs.Events(events)
 
 				var err error
 				defer close(events)
-				defer close(sdsEvents)
 				pathAdded, err := api.Unixfs().Add(req.Context, addit.Node(), opts...)
 				fmt.Println("ipfs add unixfs add err", err)
 				if err != nil {
 					errCh <- err
 					return
-				}
-
-				if cfg.Sds.Enabled {
-					f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(pathAdded.RootCid())
-					if err != nil {
-						errCh <- err
-						return
-					}
-
-					sdsFileHash, err := api.Sds().Upload(req.Context, f, opts...)
-					fmt.Println("ipfs add sds add err", err)
-					if err != nil {
-						errCh <- err
-						return
-					}
-
-					mapFile, err := api.Sds().Link(req.Context, pathAdded.RootCid(), sdsFileHash)
-					if err != nil {
-						errCh <- err
-						return
-					}
-
-					opts[len(opts)-1] = options.Unixfs.Events(sdsEvents)
-
-					_, err = api.Unixfs().Add(req.Context, mapFile, opts...)
-					fmt.Println("ipfs add sds link err", err)
-					if err != nil {
-						errCh <- err
-						return
-					}
 				}
 
 				// creating MFS pointers when optional --to-files is set
@@ -462,20 +430,20 @@ See 'dag export' and 'dag import' for more information.
 				errCh <- err
 			}()
 
-			rEvts := events
-			sEvts := sdsEvents
-			if cfg.Sds.Enabled {
-				rEvts = sdsEvents
-				sEvts = events
-			}
+			// NOTE: For redundant events, mostly sds usage
+			skipEvents := make(chan interface{}, adderOutChanSize)
+			defer func() {
+				fmt.Println("close skip events chan")
+				close(skipEvents)
+			}()
 
 			go func() {
 				// NOTE: As it has capacity, let's also iterate this chan
-				for range sEvts {
+				for range skipEvents {
 				}
 			}()
 
-			for event := range rEvts {
+			for event := range events {
 				output, ok := event.(*coreiface.AddEvent)
 				if !ok {
 					return errors.New("unknown event type")
@@ -496,6 +464,39 @@ See 'dag export' and 'dag import' for more information.
 				if ts := addit.Node().ModTime(); !ts.IsZero() {
 					output.Mtime = addit.Node().ModTime().Unix()
 					output.MtimeNsecs = addit.Node().ModTime().Nanosecond()
+				}
+
+				// TODO: Hande h var
+
+				if cfg.Sds.Enabled && (output.Path != path.ImmutablePath{}) {
+					f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(output.Path.RootCid())
+					fmt.Println("dag parser export err", err)
+					if err != nil {
+						return err
+					}
+
+					sdsFileHash, err := api.Sds().Upload(req.Context, f, opts...)
+					fmt.Println("ipfs sds add err", err)
+					if err != nil {
+						return err
+					}
+
+					mapFile, err := api.Sds().Link(req.Context, output.Path.RootCid(), sdsFileHash)
+					fmt.Println("ipfs sds link err", err)
+					if err != nil {
+						return err
+					}
+
+					opts[len(opts)-1] = options.Unixfs.Events(skipEvents)
+
+					sPath, err := api.Unixfs().Add(req.Context, mapFile, opts...)
+					fmt.Println("ipfs unixfs add for sds err", err)
+					if err != nil {
+						return err
+					}
+
+					h = enc.Encode(sPath.RootCid())
+					fmt.Println("new h", h)
 				}
 
 				addEvent := AddEvent{
