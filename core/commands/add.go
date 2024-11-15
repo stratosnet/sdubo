@@ -505,7 +505,6 @@ See 'dag export' and 'dag import' for more information.
 					}
 
 					h = enc.Encode(sPath.RootCid())
-					fmt.Println("new h", h)
 				}
 
 				addEvent := AddEvent{
