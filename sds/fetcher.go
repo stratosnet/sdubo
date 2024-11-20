@@ -11,32 +11,46 @@ import (
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
+type execInfo struct {
+	name       string
+	fn         func() error
+	retryCount uint8
+}
+
 type fqueue struct {
-	ch     chan interface{} // Channel to hold the queue elements in FIFO order
-	ticker *time.Ticker     // Ticker for re-try mechanics
+	ch     chan *execInfo // Channel to hold the queue elements in FIFO order
+	rCh    chan *execInfo // Channel to hold the queue elements in FIFO order to retry
+	ticker *time.Ticker   // Ticker for re-try mechanics
 }
 
 // newFqueue creates a new instance of fqueue with a specific size
-func newFqueue(size int) *fqueue {
+func newFqueue(pollRetryTime, size int) *fqueue {
 	return &fqueue{
-		ch:     make(chan interface{}, size),
-		ticker: time.NewTicker(5 * time.Second),
+		ch:     make(chan *execInfo, size),
+		rCh:    make(chan *execInfo, size),
+		ticker: time.NewTicker(time.Duration(pollRetryTime) * time.Second),
 	}
 }
 
+// RetryQueue returns the channel of the fqueue to retry
+func (q *fqueue) RetryQueue() chan *execInfo {
+	return q.rCh
+}
+
 // Queue returns the channel of the fqueue
-func (q *fqueue) Queue() chan interface{} {
+func (q *fqueue) Queue() chan *execInfo {
 	return q.ch
 }
 
 type Fetcher struct {
-	cfg    *config.Sds
-	wallet *SdsWallet
-	rpc    *Rpc
-	q      *fqueue
+	cfg            *config.Sds
+	wallet         *SdsWallet
+	rpc            *Rpc
+	q              *fqueue
+	execRetryCount uint8
 }
 
-func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
+func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
 	wallet, err := NewSdsWallet(cfg.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -50,9 +64,14 @@ func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
 		cfg:    cfg,
 		wallet: wallet,
 		rpc:    rpc,
-		q:      newFqueue(100),
+		q:      newFqueue(30, 100),
 	}
-	go f.loop()
+
+	if !noRetry {
+		f.execRetryCount = 5
+		go f.fetchPoll()
+		go f.retryFetchPoll()
+	}
 
 	return f, nil
 }
@@ -62,23 +81,47 @@ func isDublErr(ret string) bool {
 	return strings.Contains(ret, "Same file with the name")
 }
 
-func (f *Fetcher) loop() {
-	for item := range f.q.Queue() {
-		// NOTE: Should I have auto-retry? I guess not at this moment
-		f.execute(item)
+func (f *Fetcher) retryFetchPoll() {
+	defer f.q.ticker.Stop()
+
+	for {
+		select {
+		case <-f.q.ticker.C:
+			f.retry()
+		}
 	}
 }
 
-func (f *Fetcher) execute(item interface{}) bool {
-	fn, ok := item.(func() error)
-	if !ok {
-		return false
+func (f *Fetcher) retry() {
+	for {
+		select {
+		case item := <-f.q.RetryQueue():
+			if item.retryCount > 0 {
+				item.retryCount -= 1
+			}
+			f.q.Queue() <- item
+		default:
+			return
+		}
 	}
+}
 
-	if err := fn(); err != nil {
-		return false
+func (f *Fetcher) fetchPoll() {
+	for item := range f.q.Queue() {
+		if err := f.execute(item); err != nil {
+			if item.retryCount != 0 {
+				f.q.RetryQueue() <- item
+			}
+		}
 	}
-	return true
+}
+
+func (f *Fetcher) execute(ei *execInfo) error {
+	if err := ei.fn(); err != nil {
+		// TODO: Maybe handle only -5 (timeout)?
+		return err
+	}
+	return nil
 }
 
 func (f *Fetcher) Upload(fileData []byte) (string, error) {
@@ -231,13 +274,23 @@ func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {
 		}
 
 		if res.Return != rpc_api.SUCCESS {
-			return fmt.Errorf("share link creation failed")
+			return fmt.Errorf("share link creation failed, status code: %s", res.Return)
 		}
 
 		return nil
 	}
 
-	f.q.Queue() <- fn
+	if f.execRetryCount > 0 {
+		f.q.Queue() <- &execInfo{
+			name:       "CreateShareLink",
+			fn:         fn,
+			retryCount: f.execRetryCount,
+		}
+	} else {
+		if err := fn(); err != nil {
+			return false, err
+		}
+	}
 
 	return true, nil
 }

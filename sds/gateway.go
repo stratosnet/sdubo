@@ -29,7 +29,7 @@ type SdsBlocksBackend struct {
 }
 
 func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
-	fetcher, err := NewFetcher(cfg)
+	fetcher, err := NewFetcher(cfg, true)
 	if err != nil {
 		return nil, err
 	}

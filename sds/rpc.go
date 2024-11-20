@@ -37,7 +37,7 @@ func wrapJsonRpc(method string, param []byte) []byte {
 	return r
 }
 
-// var timeout = 10 * time.Second
+var timeout = 10 * time.Second
 
 type Rpc struct {
 	httpRpcUrl string
@@ -76,7 +76,7 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
-		// Timeout: timeout,
+		Timeout: timeout,
 	}
 	resp, err := client.Do(req)
 	if err != nil {

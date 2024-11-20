@@ -21,9 +21,9 @@ func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts 
 	if err != nil {
 		return nil, err
 	}
-	if _, err = api.sdsFetcher.CreateShareLink(fileHash, cid.String()); err != nil {
-		return nil, err
-	}
+
+	go api.sdsFetcher.CreateShareLink(fileHash, cid.String())
+
 	f, ok := mapFile.(files.File)
 	if !ok {
 		return nil, fmt.Errorf("not a file")
