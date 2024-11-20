@@ -75,7 +75,7 @@ func (c *Context) GetAPI() (coreiface.CoreAPI, error) {
 
 		// sds embedding
 		if cfg.Sds.Enabled {
-			fetcher, err := sds.NewFetcher(&cfg.Sds)
+			fetcher, err := sds.NewFetcher(&cfg.Sds, false)
 			if err != nil {
 				return nil, err
 			}
