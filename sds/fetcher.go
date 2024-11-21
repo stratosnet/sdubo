@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ipfs/kubo/config"
+	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
 
@@ -179,21 +180,12 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 	return fileHash, nil
 }
 
-func (f *Fetcher) download(fileHash string, downloadCallback func() (*rpc_api.Result, error)) ([]byte, error) {
+func (f *Fetcher) download(fileHash, storeName string, downloadCallback func(sequenceNumber string) (*rpc_api.Result, error)) ([]byte, error) {
 	var (
 		fileSize uint64 = 0
 	)
 
-	res, err := downloadCallback()
-	if err != nil {
-		return nil, err
-	}
-
-	if fileHash == "" {
-		fileHash = res.FileHash
-	}
-
-	filePath := filepath.Join(f.cfg.CacheFolder, fileHash)
+	filePath := filepath.Join(f.cfg.CacheFolder, storeName)
 
 	fileData, err := readFile(filePath)
 	if err != nil {
@@ -205,6 +197,20 @@ func (f *Fetcher) download(fileHash string, downloadCallback func() (*rpc_api.Re
 
 	if fileData == nil {
 		fileData = make([]byte, 0)
+	}
+
+	oz, err := f.rpc.GetOzone(f.wallet)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := downloadCallback(oz.SequenceNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	if fileHash == "" {
+		fileHash = res.FileHash
 	}
 
 	// Handle result:1 sending the content
@@ -235,34 +241,31 @@ func (f *Fetcher) download(fileHash string, downloadCallback func() (*rpc_api.Re
 }
 
 func (f *Fetcher) Download(fileHash string) ([]byte, error) {
-	callback := func() (*rpc_api.Result, error) {
-		oz, err := f.rpc.GetOzone(f.wallet)
-		if err != nil {
-			return nil, err
-		}
-		res, err := f.rpc.RequestDownload(f.wallet, oz.SequenceNumber, fileHash)
+	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
+		res, err := f.rpc.RequestDownload(f.wallet, sequenceNumber, fileHash)
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
 	}
-	return f.download(fileHash, callback)
+	return f.download(fileHash, fileHash, callback)
 }
 
 func (f *Fetcher) DownloadFromShare(shareLink string) ([]byte, error) {
-	callback := func() (*rpc_api.Result, error) {
-		oz, err := f.rpc.GetOzone(f.wallet)
-		if err != nil {
-			return nil, err
-		}
-		res, err := f.rpc.GetShared(f.wallet, oz.SequenceNumber, shareLink)
+	parsedLink, err := fwtypes.ParseShareLink(shareLink)
+	if err != nil {
+		return nil, err
+	}
+
+	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
+		res, err := f.rpc.GetShared(f.wallet, sequenceNumber, parsedLink)
 		fmt.Println("Fetcher Download DownloadFromShare res - err", res, err)
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
 	}
-	return f.download("", callback)
+	return f.download("", parsedLink.Link, callback)
 }
 
 func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {

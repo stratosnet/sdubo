@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/ipfs/boxo/blockstore"
@@ -20,12 +21,13 @@ import (
 var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
 
 type SdsBlocksBackend struct {
-	b       gateway.IPFSBackend
-	cfg     *config.Sds
-	fetcher *Fetcher
-	dag     format.DAGService
-	bs      blockstore.GCBlockstore
-	pin     pin.Pinner
+	b           gateway.IPFSBackend
+	cfg         *config.Sds
+	fetcher     *Fetcher
+	dag         format.DAGService
+	bs          blockstore.GCBlockstore
+	pin         pin.Pinner
+	ipfsTimeout uint
 }
 
 func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
@@ -35,12 +37,13 @@ func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGSe
 	}
 
 	return &SdsBlocksBackend{
-		b:       b,
-		cfg:     cfg,
-		fetcher: fetcher,
-		dag:     dag,
-		bs:      bs,
-		pin:     pin,
+		b:           b,
+		cfg:         cfg,
+		fetcher:     fetcher,
+		dag:         dag,
+		bs:          bs,
+		pin:         pin,
+		ipfsTimeout: 30,
 	}, nil
 }
 
@@ -85,16 +88,39 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		errS       error
 	)
 
-	// // NOTE: tmp fix for non existing cid as we will go to sds, this should be fine for now
-	// ctx2, cancelFn := context.WithTimeout(ctx, 2*time.Second)
-	// defer cancelFn()
+	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(sb.ipfsTimeout)*time.Second)
+	defer cancelFn()
 
 	// NOTE: Check first if file exists in ipfs
-	md, n, err := sb.b.Get(ctx, path_, ranges...)
+	md, n, err := sb.b.Get(ctx2, path_, ranges...)
+
 	// Not exist, trying to get from sds
 	if err != nil {
-		if !sb.cfg.Enabled {
+		skipPath := strings.Contains(err.Error(), "index.html") ||
+			strings.Contains(err.Error(), "favicon.ico")
+		if !sb.cfg.Enabled || skipPath {
 			return md, n, err
+		}
+
+		c, errS := cid.Parse(path_.Segments()[1])
+		if errS != nil {
+			return md, n, err
+		}
+
+		if c.Type() != cid.DagProtobuf {
+			return md, n, err
+		}
+
+		if c.Version() == 1 {
+			npath_, errS := ExtendPath(path.FromCid(cid.NewCidV0(c.Hash())), path_)
+			if errS != nil {
+				return gateway.ContentPathMetadata{}, nil, errS
+			}
+
+			path_, errS = path.NewImmutablePath(npath_)
+			if errS != nil {
+				return gateway.ContentPathMetadata{}, nil, errS
+			}
 		}
 
 		// TODO: Maybe to get from ipfs also first?
@@ -112,7 +138,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			originalCid, errS := ParseLink(fileData)
 			if errS == nil {
 				oPath, errS := path.NewPath("/ipfs/" + originalCid.String())
-				if err != nil {
+				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}
 				path_, errS = path.NewImmutablePath(oPath)
@@ -139,7 +165,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		sdsP, errS = ModifySdsCARPath(sdsP, path_)
+		sdsP, errS = ExtendPath(sdsP, path_)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
