@@ -62,7 +62,7 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 			return nil, err
 		}
 
-		sdsP, err = sds.ModifySdsCARPath(sdsP, p)
+		sdsP, err = sds.ExtendPath(sdsP, p)
 		if err != nil {
 			return nil, err
 		}

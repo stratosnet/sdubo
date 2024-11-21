@@ -286,13 +286,8 @@ func (rpc *Rpc) RequestShare(wallet *SdsWallet, fileHash string, cid *string) (*
 	return &res, nil
 }
 
-func (rpc *Rpc) GetShared(wallet *SdsWallet, sn, shareLink string) (*rpc_api.Result, error) {
+func (rpc *Rpc) GetShared(wallet *SdsWallet, sn string, parsedLink *fwtypes.ShareDataMeshId) (*rpc_api.Result, error) {
 	nowSec := time.Now().Unix()
-
-	parsedLink, err := fwtypes.ParseShareLink(shareLink)
-	if err != nil {
-		return nil, err
-	}
 
 	// signature
 	sign, err := wallet.SignGetShareLink(sn, parsedLink.Link)
@@ -304,6 +299,8 @@ func (rpc *Rpc) GetShared(wallet *SdsWallet, sn, shareLink string) (*rpc_api.Res
 		return nil, err
 	}
 
+	fmt.Println("parsedLink", parsedLink.String())
+
 	req := rpc_api.ParamReqGetShared{
 		Signature: rpc_api.Signature{
 			Address:   wallet.GetAddress(),
@@ -311,7 +308,7 @@ func (rpc *Rpc) GetShared(wallet *SdsWallet, sn, shareLink string) (*rpc_api.Res
 			Signature: hex.EncodeToString(sign),
 		},
 		ReqTime:   nowSec,
-		ShareLink: shareLink,
+		ShareLink: parsedLink.String(),
 	}
 
 	var res rpc_api.Result
