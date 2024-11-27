@@ -18,16 +18,17 @@ import (
 	fwtypes "github.com/stratosnet/sds/framework/types"
 )
 
+const SpfsGatewayBlockTimeout = 30
+
 var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
 
 type SdsBlocksBackend struct {
-	b           gateway.IPFSBackend
-	cfg         *config.Sds
-	fetcher     *Fetcher
-	dag         format.DAGService
-	bs          blockstore.GCBlockstore
-	pin         pin.Pinner
-	ipfsTimeout uint
+	b       gateway.IPFSBackend
+	cfg     *config.Sds
+	fetcher *Fetcher
+	dag     format.DAGService
+	bs      blockstore.GCBlockstore
+	pin     pin.Pinner
 }
 
 func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
@@ -37,13 +38,12 @@ func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGSe
 	}
 
 	return &SdsBlocksBackend{
-		b:           b,
-		cfg:         cfg,
-		fetcher:     fetcher,
-		dag:         dag,
-		bs:          bs,
-		pin:         pin,
-		ipfsTimeout: 30,
+		b:       b,
+		cfg:     cfg,
+		fetcher: fetcher,
+		dag:     dag,
+		bs:      bs,
+		pin:     pin,
 	}, nil
 }
 
@@ -88,7 +88,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		errS       error
 	)
 
-	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(sb.ipfsTimeout)*time.Second)
+	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(SpfsGatewayBlockTimeout)*time.Second)
 	defer cancelFn()
 
 	// NOTE: Check first if file exists in ipfs
@@ -160,13 +160,25 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 
 	isCar, _ := IsCAR(files.NewBytesFile(fileData))
 	if isCar {
-		sdsP, errS := NewDagParser(ctx, sb.dag, sb.bs, sb.pin).Import(files.NewBytesFile(fileData), doPinRoots)
+		dp := NewDagParser(ctx, sb.dag, sb.bs, sb.pin)
+		// TODO: Add a way to import only if it is not exists
+		sdsP, errS := dp.Import(files.NewBytesFile(fileData), doPinRoots)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
 		sdsP, errS = ExtendPath(sdsP, path_)
 		if errS != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
+		}
+
+		cid_, err := cid.Parse(sdsP.Segments()[1])
+		if err != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
+		}
+
+		// TODO: Add a way to import only if it is not exists
+		if _, err = dp.ImportSdsDagLink(cid_, files.NewBytesFile(fileData)); err != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
@@ -181,7 +193,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 	}
 
-	return md, n, err
+	return md, n, nil
 }
 
 func (sb *SdsBlocksBackend) GetAll(ctx context.Context, path path.ImmutablePath) (gateway.ContentPathMetadata, files.Node, error) {

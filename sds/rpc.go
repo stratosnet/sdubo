@@ -299,8 +299,6 @@ func (rpc *Rpc) GetShared(wallet *SdsWallet, sn string, parsedLink *fwtypes.Shar
 		return nil, err
 	}
 
-	fmt.Println("parsedLink", parsedLink.String())
-
 	req := rpc_api.ParamReqGetShared{
 		Signature: rpc_api.Signature{
 			Address:   wallet.GetAddress(),

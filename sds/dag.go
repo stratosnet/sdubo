@@ -8,6 +8,8 @@ import (
 
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/files"
+	merkledag "github.com/ipfs/boxo/ipld/merkledag"
+	unixfs "github.com/ipfs/boxo/ipld/unixfs"
 	"github.com/ipfs/boxo/path"
 	pin "github.com/ipfs/boxo/pinning/pinner"
 	blocks "github.com/ipfs/go-block-format"
@@ -121,8 +123,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 		previous = block
 	}
 
-	err = batch.Commit()
-	if err != nil {
+	if err := batch.Commit(); err != nil {
 		return nil, err
 	}
 
@@ -164,15 +165,71 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 }
 
 func (dp *DagParser) Export(rootCid cid.Cid) (files.File, error) {
+	return dp.ExportWithStore(dp, rootCid)
+}
+
+func (dp *DagParser) ExportWithStore(store gocar.ReadStore, rootCid cid.Cid) (files.File, error) {
 	var b bytes.Buffer
 
 	dag := gocar.Dag{Root: rootCid, Selector: selectorparse.CommonSelector_ExploreAllRecursively}
 	// TraverseLinksOnlyOnce is safe for an exhaustive selector but won't be when we allow
 	// arbitrary selectors here
-	car := gocar.NewSelectiveCar(dp.ctx, dp, []gocar.Dag{dag}, gocar.TraverseLinksOnlyOnce())
+	car := gocar.NewSelectiveCar(dp.ctx, store, []gocar.Dag{dag}, gocar.TraverseLinksOnlyOnce())
 	if err := car.Write(&b); err != nil {
 		return nil, err
 	}
 
 	return files.NewBytesFile(b.Bytes()), nil
+}
+
+func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node) (path.Path, error) {
+	fs, ok := f.(io.ReadSeeker)
+	if !ok {
+		return nil, fmt.Errorf("not a seeker")
+	}
+	// just in case
+	if _, err := fs.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	fileData, err := io.ReadAll(f.(files.File))
+	if err != nil {
+		return nil, err
+	}
+	fileHash := CreateFileHash(fileData)
+
+	mFile, err := NewSdsFile(cid_, fileHash)
+	if err != nil {
+		return nil, err
+	}
+
+	mData, err := io.ReadAll(mFile.(files.File))
+	if err != nil {
+		return nil, err
+	}
+
+	pb := merkledag.NodeWithData(unixfs.FilePBData(mData, uint64(len(mData))))
+	blk := blocks.NewBlock(pb.RawData())
+
+	vbs := NewVirtualBlockStore(blk)
+
+	eMFile, err := dp.ExportWithStore(vbs, pb.Cid())
+	if err != nil {
+		return nil, err
+	}
+
+	return dp.Import(eMFile, true)
+}
+
+type VirtualBlockStore struct {
+	blk *blocks.BasicBlock
+}
+
+func NewVirtualBlockStore(blk *blocks.BasicBlock) *VirtualBlockStore {
+	return &VirtualBlockStore{
+		blk: blk,
+	}
+}
+
+func (vbs *VirtualBlockStore) Get(_ context.Context, c cid.Cid) (blocks.Block, error) {
+	return vbs.blk, nil
 }

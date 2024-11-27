@@ -372,7 +372,6 @@ See 'dag export' and 'dag import' for more information.
 				var err error
 				defer close(events)
 				pathAdded, err := api.Unixfs().Add(req.Context, addit.Node(), opts...)
-				fmt.Println("ipfs add unixfs add err", err)
 				if err != nil {
 					errCh <- err
 					return
@@ -441,10 +440,7 @@ See 'dag export' and 'dag import' for more information.
 
 			// NOTE: For redundant events, mostly sds usage
 			skipEvents := make(chan interface{}, adderOutChanSize)
-			defer func() {
-				fmt.Println("close skip events chan")
-				close(skipEvents)
-			}()
+			defer close(skipEvents)
 
 			go func() {
 				// NOTE: As it has capacity, let's also iterate this chan
@@ -479,19 +475,16 @@ See 'dag export' and 'dag import' for more information.
 
 				if cfg.Sds.Enabled && (output.Path != path.ImmutablePath{}) {
 					f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(output.Path.RootCid())
-					fmt.Println("dag parser export err", err)
 					if err != nil {
 						return err
 					}
 
 					sdsFileHash, err := api.Sds().Upload(req.Context, f, opts...)
-					fmt.Println("ipfs sds add err", err)
 					if err != nil {
 						return err
 					}
 
 					mapFile, err := api.Sds().Link(req.Context, output.Path.RootCid(), sdsFileHash)
-					fmt.Println("ipfs sds link err", err)
 					if err != nil {
 						return err
 					}
@@ -499,7 +492,6 @@ See 'dag export' and 'dag import' for more information.
 					opts[len(opts)-1] = options.Unixfs.Events(skipEvents)
 
 					sPath, err := api.Unixfs().Add(req.Context, mapFile, opts...)
-					fmt.Println("ipfs unixfs add for sds err", err)
 					if err != nil {
 						return err
 					}

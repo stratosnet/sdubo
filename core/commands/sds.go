@@ -2,7 +2,9 @@ package commands
 
 import (
 	"context"
+	"time"
 
+	cid "github.com/ipfs/go-cid"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/sds"
@@ -14,11 +16,10 @@ import (
 )
 
 func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path) (files.Node, error) {
-	var (
-		doPinRoots = false
-	)
+	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
+	defer cancelFn()
 	// NOTE: Check first if file exists in ipfs
-	f, err := api.Unixfs().Get(ctx, p)
+	f, err := api.Unixfs().Get(ctx2, p)
 	// Not exist, trying to get from sds
 	if err != nil {
 		if !cfg.Sds.Enabled {
@@ -31,8 +32,6 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 		}
 
 		f = sf.(files.Node)
-		// in this case we should pin to store into local block tree
-		doPinRoots = true
 	} else if cfg.Sds.Enabled {
 		// in case file found on ipfs, check if it is a mapping file and get original car file
 		// NOTE: Risk of broke API with mailware map file?
@@ -57,13 +56,25 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 			return nil, err
 		}
 
-		sdsP, err := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning).Import(f.(files.File), doPinRoots)
+		// TODO: Add a way to import only if it is not exists
+		dp := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning)
+		sdsP, err := dp.Import(f.(files.File), true)
 		if err != nil {
 			return nil, err
 		}
 
 		sdsP, err = sds.ExtendPath(sdsP, p)
 		if err != nil {
+			return nil, err
+		}
+
+		cid_, err := cid.Parse(sdsP.Segments()[1])
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: Add a way to import only if it is not exists
+		if _, err = dp.ImportSdsDagLink(cid_, f); err != nil {
 			return nil, err
 		}
 
