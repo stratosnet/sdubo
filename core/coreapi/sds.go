@@ -54,7 +54,6 @@ func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutableP
 	}
 
 	originalCid, err := sds.ParseLink(fileData)
-	fmt.Println("Parse originalCid", originalCid)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
