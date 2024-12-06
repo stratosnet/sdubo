@@ -16,6 +16,7 @@ import (
 	config "github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	corecommands "github.com/ipfs/kubo/core/commands"
+	"github.com/ipfs/kubo/sds"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -147,6 +148,7 @@ func commandsOption(cctx oldcmds.Context, command *cmds.Command) ServeOption {
 		}
 
 		cmdHandler = otelhttp.NewHandler(cmdHandler, "corehttp.cmdsHandler")
+		cmdHandler = sds.NewSGHandler(cmdHandler) // NEW
 		mux.Handle(APIPath+"/", cmdHandler)
 		return mux, nil
 	}

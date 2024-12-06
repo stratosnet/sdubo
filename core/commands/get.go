@@ -15,6 +15,8 @@ import (
 	"github.com/ipfs/kubo/core/commands/cmdenv"
 	"github.com/ipfs/kubo/core/commands/cmdutils"
 	"github.com/ipfs/kubo/core/commands/e"
+	"github.com/ipfs/kubo/core/coreiface/options"
+	"github.com/ipfs/kubo/sds"
 
 	"github.com/cheggaaa/pb"
 	"github.com/ipfs/boxo/files"
@@ -88,7 +90,13 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 			return err
 		}
 
-		file, err := getCarOrResolve(nd, cfg, ctx, api, p)
+		sOpts := []options.SdsOption{}
+		sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+		if ok {
+			sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+		}
+
+		file, err := getCarOrResolve(nd, cfg, ctx, api, p, sOpts...)
 		if err != nil {
 			return err
 		}

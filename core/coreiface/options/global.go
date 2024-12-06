@@ -49,8 +49,8 @@ func (apiOpts) FetchBlocks(fetch bool) ApiOption {
 }
 
 type SdsFetcher interface {
-	Download(fileHash string) ([]byte, error)
-	Upload(fileData []byte) (string, error)
+	Download(privKey, fileHash string) ([]byte, error)
+	Upload(privKey string, fileData []byte) (string, error)
 }
 
 // sds

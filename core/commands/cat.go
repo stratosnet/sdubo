@@ -10,6 +10,8 @@ import (
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
 	"github.com/ipfs/kubo/core/commands/cmdutils"
+	"github.com/ipfs/kubo/core/coreiface/options"
+	"github.com/ipfs/kubo/sds"
 
 	"github.com/cheggaaa/pb"
 	"github.com/ipfs/boxo/files"
@@ -72,7 +74,13 @@ var CatCmd = &cmds.Command{
 			return err
 		}
 
-		readers, length, err := cat(nd, cfg, req.Context, api, req.Arguments, int64(offset), int64(max))
+		sOpts := []options.SdsOption{}
+		sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+		if ok {
+			sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+		}
+
+		readers, length, err := cat(nd, cfg, req.Context, api, req.Arguments, int64(offset), int64(max), sOpts...)
 		if err != nil {
 			return err
 		}
@@ -133,7 +141,7 @@ var CatCmd = &cmds.Command{
 	},
 }
 
-func cat(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64) ([]io.Reader, uint64, error) {
+func cat(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, paths []string, offset int64, max int64, opts ...options.SdsOption) ([]io.Reader, uint64, error) {
 	readers := make([]io.Reader, 0, len(paths))
 	length := uint64(0)
 	if max == 0 {
@@ -145,7 +153,7 @@ func cat(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.C
 			return nil, 0, err
 		}
 
-		f, err := getCarOrResolve(nd, cfg, ctx, api, p)
+		f, err := getCarOrResolve(nd, cfg, ctx, api, p, opts...)
 		if err != nil {
 			return nil, 0, err
 		}

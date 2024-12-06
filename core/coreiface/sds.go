@@ -12,14 +12,14 @@ import (
 // SdsAPI specifies the interface to the sds layer.
 type SdsAPI interface {
 	// Add imports the data from the reader into sds store chunks
-	Upload(context.Context, files.File, ...options.UnixfsAddOption) (string, error)
+	Upload(context.Context, files.File, ...options.SdsOption) (string, error)
 	// Link a path with sds as share link
-	Link(context.Context, cid.Cid, string, ...options.UnixfsAddOption) (files.File, error)
+	Link(context.Context, cid.Cid, string, ...options.SdsOption) (files.File, error)
 	// Parse file to get sds file hash
 	Parse(context.Context, files.File) (path.ImmutablePath, error)
 	// Get returns a read-only handle to a file tree referenced by a file hash
 	//
 	// Note that some implementations of this API may apply the specified context
 	// to operations performed on the returned file
-	Download(context.Context, path.Path) (files.File, error)
+	Download(context.Context, path.Path, ...options.SdsOption) (files.File, error)
 }

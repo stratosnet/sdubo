@@ -470,12 +470,18 @@ See 'dag export' and 'dag import' for more information.
 						return err
 					}
 
-					sdsFileHash, err := api.Sds().Upload(req.Context, f, opts...)
+					sOpts := []options.SdsOption{}
+					sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+					if ok {
+						sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+					}
+
+					sdsFileHash, err := api.Sds().Upload(req.Context, f, sOpts...)
 					if err != nil {
 						return err
 					}
 
-					mapFile, err := api.Sds().Link(req.Context, output.Path.RootCid(), sdsFileHash)
+					mapFile, err := api.Sds().Link(req.Context, output.Path.RootCid(), sdsFileHash, sOpts...)
 					if err != nil {
 						return err
 					}

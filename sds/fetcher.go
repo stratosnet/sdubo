@@ -3,7 +3,6 @@ package sds
 import (
 	"encoding/base64"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -45,27 +44,26 @@ func (q *fqueue) Queue() chan *execInfo {
 
 type Fetcher struct {
 	cfg            *config.Sds
-	wallet         *SdsWallet
 	rpc            *Rpc
 	q              *fqueue
 	execRetryCount uint8
 }
 
 func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
-	wallet, err := NewSdsWallet(cfg.PrivateKey)
+	addr, err := cfg.GetRpcAddress()
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := NewRpc(cfg.RpcURL)
+
+	rpc, err := NewRpc(addr)
 	if err != nil {
 		return nil, err
 	}
 
 	f := &Fetcher{
-		cfg:    cfg,
-		wallet: wallet,
-		rpc:    rpc,
-		q:      newFqueue(30, 100),
+		cfg: cfg,
+		rpc: rpc,
+		q:   newFqueue(30, 100),
 	}
 
 	if !noRetry {
@@ -125,10 +123,27 @@ func (f *Fetcher) execute(ei *execInfo) error {
 	return nil
 }
 
-func (f *Fetcher) Upload(fileData []byte) (string, error) {
+func (f *Fetcher) getWallet(privKey string) (*SdsWallet, error) {
+	// In case empty wallet
+	if privKey == "" {
+		privKey = f.cfg.PrivateKey
+	}
+	wallet, err := NewSdsWallet(privKey)
+	if err != nil {
+		return nil, err
+	}
+	return wallet, nil
+}
+
+func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 	fileHash := CreateFileHash(fileData)
 
-	oz, err := f.rpc.GetOzone(f.wallet)
+	wallet, err := f.getWallet(privKey)
+	if err != nil {
+		return "", err
+	}
+
+	oz, err := f.rpc.GetOzone(wallet)
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +154,7 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 		return "", err
 	}
 
-	res, err := f.rpc.RequestUpload(f.wallet, oz.SequenceNumber, fileName, fileHash, len(fileData))
+	res, err := f.rpc.RequestUpload(wallet, oz.SequenceNumber, fileName, fileHash, len(fileData))
 	if err != nil {
 		if isDublErr(err.Error()) {
 			return fileHash, nil
@@ -161,7 +176,7 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 			return "", err
 		}
 
-		res, err = f.rpc.UploadData(f.wallet, oz.SequenceNumber, fileHash, fileChunk)
+		res, err = f.rpc.UploadData(wallet, oz.SequenceNumber, fileHash, fileChunk)
 		if err != nil {
 			if isDublErr(err.Error()) {
 				return fileHash, nil
@@ -180,26 +195,14 @@ func (f *Fetcher) Upload(fileData []byte) (string, error) {
 	return fileHash, nil
 }
 
-func (f *Fetcher) download(fileHash, storeName string, downloadCallback func(sequenceNumber string) (*rpc_api.Result, error)) ([]byte, error) {
+func (f *Fetcher) download(wallet *SdsWallet, fileHash, storeName string, downloadCallback func(sequenceNumber string) (*rpc_api.Result, error)) ([]byte, error) {
 	var (
 		fileSize uint64 = 0
 	)
 
-	filePath := filepath.Join(f.cfg.CacheFolder, storeName)
+	fileData := make([]byte, 0)
 
-	fileData, err := readFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	if fileData != nil {
-		return fileData, err
-	}
-
-	if fileData == nil {
-		fileData = make([]byte, 0)
-	}
-
-	oz, err := f.rpc.GetOzone(f.wallet)
+	oz, err := f.rpc.GetOzone(wallet)
 	if err != nil {
 		return nil, err
 	}
@@ -216,14 +219,14 @@ func (f *Fetcher) download(fileHash, storeName string, downloadCallback func(seq
 	// Handle result:1 sending the content
 	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
 		if res.Return == rpc_api.DL_OK_ASK_INFO {
-			res, err = f.rpc.DownloadedFileInfo(f.wallet, res.ReqId, fileHash, fileSize)
+			res, err = f.rpc.DownloadedFileInfo(wallet, res.ReqId, fileHash, fileSize)
 		} else {
 			start := *res.OffsetStart
 			end := *res.OffsetEnd
 			fileSize = fileSize + (end - start)
 			decoded, _ := base64.StdEncoding.DecodeString(res.FileData)
 			fileData = append(fileData, decoded...)
-			res, err = f.rpc.DownloadData(f.wallet, res.ReqId, fileHash)
+			res, err = f.rpc.DownloadData(wallet, res.ReqId, fileHash)
 		}
 		if err != nil {
 			return nil, err
@@ -233,44 +236,55 @@ func (f *Fetcher) download(fileHash, storeName string, downloadCallback func(seq
 		return nil, fmt.Errorf("failed sp download with error: %s", res.Return)
 	}
 
-	if err = writeOnly(filePath, fileData[:]); err != nil {
-		return nil, err
-	}
-
 	return fileData, nil
 }
 
-func (f *Fetcher) Download(fileHash string) ([]byte, error) {
+func (f *Fetcher) Download(privKey, fileHash string) ([]byte, error) {
+	wallet, err := f.getWallet(privKey)
+	if err != nil {
+		return nil, err
+	}
+
 	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
-		res, err := f.rpc.RequestDownload(f.wallet, sequenceNumber, fileHash)
+		res, err := f.rpc.RequestDownload(wallet, sequenceNumber, fileHash)
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
 	}
-	return f.download(fileHash, fileHash, callback)
+	return f.download(wallet, fileHash, fileHash, callback)
 }
 
-func (f *Fetcher) DownloadFromShare(shareLink string) ([]byte, error) {
+func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
+	wallet, err := f.getWallet(privKey)
+	if err != nil {
+		return nil, err
+	}
+
 	parsedLink, err := fwtypes.ParseShareLink(shareLink)
 	if err != nil {
 		return nil, err
 	}
 
 	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
-		res, err := f.rpc.GetShared(f.wallet, sequenceNumber, parsedLink)
+		res, err := f.rpc.GetShared(wallet, sequenceNumber, parsedLink)
 		fmt.Println("Fetcher Download DownloadFromShare res - err", res, err)
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
 	}
-	return f.download("", parsedLink.Link, callback)
+	return f.download(wallet, "", parsedLink.Link, callback)
 }
 
-func (f *Fetcher) CreateShareLink(fileHash, cid string) (bool, error) {
+func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
+	wallet, err := f.getWallet(privKey)
+	if err != nil {
+		return false, err
+	}
+
 	fn := func() error {
-		res, err := f.rpc.RequestShare(f.wallet, fileHash, &cid)
+		res, err := f.rpc.RequestShare(wallet, fileHash, &cid)
 		fmt.Println("Fetcher CreateShareLink RequestShare res - err", res, err)
 		if err != nil {
 			return err
