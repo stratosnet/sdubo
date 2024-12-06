@@ -15,7 +15,7 @@ import (
 	"github.com/ipfs/kubo/core/coreiface/options"
 )
 
-func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path) (files.Node, error) {
+func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
 	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
 	defer cancelFn()
 	// NOTE: Check first if file exists in ipfs
@@ -26,7 +26,7 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 			return nil, err
 		}
 
-		sf, err := api.Sds().Download(ctx, p)
+		sf, err := api.Sds().Download(ctx, p, opts...)
 		if err != nil {
 			return nil, err
 		}

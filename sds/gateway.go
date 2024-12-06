@@ -127,7 +127,8 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		shareLink := fwtypes.SetShareLink(path_.Segments()[1], "")
 
 		// no care of error
-		fileData, _ = sb.fetcher.DownloadFromShare(shareLink.String())
+		// TODO: Add pk from sg
+		fileData, _ = sb.fetcher.DownloadFromShare("", shareLink.String())
 		// in this case we should pin to store into local block tree
 		doPinRoots = true
 	} else if sb.cfg.Enabled {

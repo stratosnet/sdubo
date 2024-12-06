@@ -16,13 +16,18 @@ import (
 type SdsAPI CoreAPI
 
 // Link a path with sds as share link
-func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts ...options.UnixfsAddOption) (files.File, error) {
+func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts ...options.SdsOption) (files.File, error) {
+	settings, err := options.SdsOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	mapFile, err := sds.NewSdsFile(cid, fileHash)
 	if err != nil {
 		return nil, err
 	}
 
-	go api.sdsFetcher.CreateShareLink(fileHash, cid.String())
+	go api.sdsFetcher.CreateShareLink(settings.PrivKey, fileHash, cid.String())
 
 	f, ok := mapFile.(files.File)
 	if !ok {
@@ -32,13 +37,18 @@ func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts 
 }
 
 // Add imports the data from the reader into sds store chunks
-func (api *SdsAPI) Upload(ctx context.Context, file_ files.File, opts ...options.UnixfsAddOption) (string, error) {
+func (api *SdsAPI) Upload(ctx context.Context, file_ files.File, opts ...options.SdsOption) (string, error) {
+	settings, err := options.SdsOptions(opts...)
+	if err != nil {
+		return "", err
+	}
+
 	fileData, err := io.ReadAll(file_)
 	if err != nil {
 		return "", err
 	}
 
-	return api.sdsFetcher.Upload(fileData)
+	return api.sdsFetcher.Upload(settings.PrivKey, fileData)
 }
 
 func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutablePath, error) {
@@ -65,9 +75,14 @@ func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutableP
 	return path.NewImmutablePath(ip)
 }
 
-func (api *SdsAPI) Download(ctx context.Context, p path.Path) (files.File, error) {
+func (api *SdsAPI) Download(ctx context.Context, p path.Path, opts ...options.SdsOption) (files.File, error) {
+	settings, err := options.SdsOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	shareLink := fwtypes.SetShareLink(p.Segments()[1], "")
-	fileData, err := api.sdsFetcher.DownloadFromShare(shareLink.String())
+	fileData, err := api.sdsFetcher.DownloadFromShare(settings.PrivKey, shareLink.String())
 	if err != nil {
 		return nil, err
 	}
