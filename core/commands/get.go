@@ -58,6 +58,7 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 		cmds.BoolOption(compressOptionName, "C", "Compress the output with GZIP compression."),
 		cmds.IntOption(compressionLevelOptionName, "l", "The level of compression (1-9)."),
 		cmds.BoolOption(progressOptionName, "p", "Stream progress data.").WithDefault(true),
+		cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.").WithDefault("From Sds.PrivateKey config var"),
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
 		_, err := getCompressOptions(req)
@@ -91,9 +92,9 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 		}
 
 		sOpts := []options.SdsOption{}
-		sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+		privKey, ok := req.Options[sds.OptionSpfsPrivKey].(string)
 		if ok {
-			sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+			sOpts = append(sOpts, options.Sds.PrivKey(privKey))
 		}
 
 		file, err := getCarOrResolve(nd, cfg, ctx, api, p, sOpts...)

@@ -38,6 +38,7 @@ var CatCmd = &cmds.Command{
 		cmds.Int64Option(offsetOptionName, "o", "Byte offset to begin reading from."),
 		cmds.Int64Option(lengthOptionName, "l", "Maximum number of bytes to read."),
 		cmds.BoolOption(progressOptionName, "p", "Stream progress data.").WithDefault(true),
+		cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.").WithDefault("From Sds.PrivateKey config var"),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		api, err := cmdenv.GetApi(env, req)
@@ -75,9 +76,9 @@ var CatCmd = &cmds.Command{
 		}
 
 		sOpts := []options.SdsOption{}
-		sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+		privKey, ok := req.Options[sds.OptionSpfsPrivKey].(string)
 		if ok {
-			sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+			sOpts = append(sOpts, options.Sds.PrivKey(privKey))
 		}
 
 		readers, length, err := cat(nd, cfg, req.Context, api, req.Arguments, int64(offset), int64(max), sOpts...)
