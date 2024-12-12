@@ -98,6 +98,7 @@ const (
 var (
 	cidVersionOption = cmds.IntOption(filesCidVersionOptionName, "cid-ver", "Cid version to use. (experimental)")
 	hashOption       = cmds.StringOption(filesHashOptionName, "Hash function to use. Will set Cid version to 1 if used. (experimental)")
+	spfsUserIdOption = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
 )
 
 var errFormat = errors.New("format was set by multiple options. Only one format option is allowed")
@@ -150,6 +151,20 @@ func (s *statOutput) UnmarshalJSON(data []byte) error {
 	return err
 }
 
+func spfsPath(cfg *config.Config, req *cmds.Request, path string) string {
+	if cfg.Sds.Enabled {
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		if userId != "" {
+			if path == "/" {
+				path = ""
+			}
+			// TODO: Add hash(userId) folder gen
+			path = fmt.Sprintf("/%s%s", userId, path)
+		}
+	}
+	return path
+}
+
 const (
 	defaultStatFormat = `<hash>
 Size: <size>
@@ -179,7 +194,7 @@ var filesStatCmd = &cmds.Command{
 		cmds.BoolOption(filesHashOptionName, "Print only hash. Implies '--format=<hash>'. Conflicts with other format options."),
 		cmds.BoolOption(filesSizeOptionName, "Print only size. Implies '--format=<cumulsize>'. Conflicts with other format options."),
 		cmds.BoolOption(filesWithLocalOptionName, "Compute the amount of the dag that is local, and if possible the total size"),
-		cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management."),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		_, err := statGetFormatOptions(req)
@@ -207,15 +222,8 @@ var filesStatCmd = &cmds.Command{
 			return err
 		}
 
-		if cfg.Sds.Enabled {
-			userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-			if userId != "" {
-				if path == "/" {
-					path = ""
-				}
-				path = fmt.Sprintf("/%s%s", userId, path)
-			}
-		}
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		withLocal, _ := req.Options[filesWithLocalOptionName].(bool)
 
@@ -455,7 +463,7 @@ being GC'ed.
 	},
 	Options: []cmds.Option{
 		cmds.BoolOption(filesParentsOptionName, "p", "Make parent directories as needed."),
-		cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management."),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		mkParents, _ := req.Options[filesParentsOptionName].(bool)
@@ -496,12 +504,8 @@ being GC'ed.
 			dst += gopath.Base(src)
 		}
 
-		if cfg.Sds.Enabled {
-			userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-			if userId != "" {
-				dst = fmt.Sprintf("/%s%s", userId, dst)
-			}
-		}
+		// NOTE: User management patcher
+		dst = spfsPath(cfg, req, dst)
 
 		node, err := getNodeFromPath(req.Context, nd, api, src)
 		if err != nil {
@@ -586,6 +590,7 @@ Examples:
 	Options: []cmds.Option{
 		cmds.BoolOption(longOptionName, "l", "Use long listing format."),
 		cmds.BoolOption(dontSortOptionName, "Do not sort; list entries in directory order."),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		var arg string
@@ -605,6 +610,14 @@ Examples:
 		if err != nil {
 			return err
 		}
+
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		fsn, err := mfs.Lookup(nd.FilesRoot, path)
 		if err != nil {
@@ -714,6 +727,7 @@ Examples:
 	Options: []cmds.Option{
 		cmds.Int64Option(filesOffsetOptionName, "o", "Byte offset to begin reading from."),
 		cmds.Int64Option(filesCountOptionName, "n", "Maximum number of bytes to read."),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
@@ -725,6 +739,14 @@ Examples:
 		if err != nil {
 			return err
 		}
+
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		fsn, err := mfs.Lookup(nd.FilesRoot, path)
 		if err != nil {
@@ -804,8 +826,16 @@ Example:
 		cmds.StringArg("source", true, false, "Source file to move."),
 		cmds.StringArg("dest", true, false, "Destination path for file to be moved to."),
 	},
+	Options: []cmds.Option{
+		spfsUserIdOption,
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -820,6 +850,10 @@ Example:
 		if err != nil {
 			return err
 		}
+
+		// NOTE: User management patcher
+		src = spfsPath(cfg, req, src)
+		dst = spfsPath(cfg, req, dst)
 
 		err = mfs.Mv(nd.FilesRoot, src, dst)
 		if err == nil && flush {
@@ -906,6 +940,7 @@ See '--to-files' in 'ipfs add --help' for more information.
 		cmds.BoolOption(filesRawLeavesOptionName, "Use raw blocks for newly created leaf nodes. (experimental)"),
 		cidVersionOption,
 		hashOption,
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) (retErr error) {
 		path, err := checkPath(req.Arguments[0])
@@ -922,6 +957,9 @@ See '--to-files' in 'ipfs add --help' for more information.
 		if err != nil {
 			return err
 		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		create, _ := req.Options[filesCreateOptionName].(bool)
 		mkParents, _ := req.Options[filesParentsOptionName].(bool)
@@ -1031,9 +1069,15 @@ Examples:
 		cmds.BoolOption(filesParentsOptionName, "p", "No error if existing, make parent directories as needed."),
 		cidVersionOption,
 		hashOption,
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		n, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := n.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1043,6 +1087,9 @@ Examples:
 		if err != nil {
 			return err
 		}
+
+		// NOTE: User management patcher
+		dirtomake = spfsPath(cfg, req, dirtomake)
 
 		flush, _ := req.Options[filesFlushOptionName].(bool)
 
@@ -1077,8 +1124,16 @@ are run with the '--flush=false'.
 	Arguments: []cmds.Argument{
 		cmds.StringArg("path", false, false, "Path to flush. Default: '/'."),
 	},
+	Options: []cmds.Option{
+		spfsUserIdOption,
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1092,6 +1147,9 @@ are run with the '--flush=false'.
 		if len(req.Arguments) > 0 {
 			path = req.Arguments[0]
 		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		n, err := mfs.FlushPath(req.Context, nd.FilesRoot, path)
 		if err != nil {
@@ -1116,9 +1174,15 @@ Change the CID version or hash function of the root node of a given path.
 	Options: []cmds.Option{
 		cidVersionOption,
 		hashOption,
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1127,6 +1191,9 @@ Change the CID version or hash function of the root node of a given path.
 		if len(req.Arguments) > 0 {
 			path = req.Arguments[0]
 		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		flush, _ := req.Options[filesFlushOptionName].(bool)
 
@@ -1184,9 +1251,15 @@ Remove files or directories.
 	Options: []cmds.Option{
 		cmds.BoolOption(recursiveOptionName, "r", "Recursively remove directories."),
 		cmds.BoolOption(forceOptionName, "Forcibly remove target at path; implies -r for directories"),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1201,6 +1274,9 @@ Remove files or directories.
 				errs = append(errs, fmt.Errorf("%s is not a valid path: %w", arg, err))
 				continue
 			}
+
+			// NOTE: User management patcher
+			path = spfsPath(cfg, req, path)
 
 			if err := removePath(nd.FilesRoot, path, force, dashr); err != nil {
 				errs = append(errs, fmt.Errorf("%s: %w", path, err))
@@ -1443,8 +1519,16 @@ The mode argument must be specified in Unix numeric notation.
 		cmds.StringArg("mode", true, false, "Mode to apply to node (numeric notation)"),
 		cmds.StringArg("path", true, false, "Path to apply mode"),
 	},
+	Options: []cmds.Option{
+		spfsUserIdOption,
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1453,6 +1537,9 @@ The mode argument must be specified in Unix numeric notation.
 		if err != nil {
 			return err
 		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		mode, err := strconv.ParseInt(req.Arguments[0], 8, 32)
 		if err != nil {
@@ -1481,9 +1568,15 @@ Examples:
 	Options: []cmds.Option{
 		cmds.Int64Option(mtimeOptionName, "Modification time in seconds before or since the Unix Epoch to apply to created UnixFS entries."),
 		cmds.UintOption(mtimeNsecsOptionName, "Modification time fraction in nanoseconds"),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -1492,6 +1585,9 @@ Examples:
 		if err != nil {
 			return err
 		}
+
+		// NOTE: User management patcher
+		path = spfsPath(cfg, req, path)
 
 		mtime, _ := req.Options[mtimeOptionName].(int64)
 		nsecs, _ := req.Options[mtimeNsecsOptionName].(uint)
