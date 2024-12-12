@@ -200,6 +200,7 @@ See 'dag export' and 'dag import' for more information.
 		cmds.UintOption(modeOptionName, "Custom POSIX file mode to store in created UnixFS entries. Disables raw-leaves. (experimental)"),
 		cmds.Int64Option(mtimeOptionName, "Custom POSIX modification time to store in created UnixFS entries (seconds before or after the Unix Epoch). Disables raw-leaves. (experimental)"),
 		cmds.UintOption(mtimeNsecsOptionName, "Custom POSIX modification time (optional time fraction in nanoseconds)"),
+		cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.").WithDefault("From Sds.PrivateKey config var"),
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
 		quiet, _ := req.Options[quietOptionName].(bool)
@@ -480,9 +481,9 @@ See 'dag export' and 'dag import' for more information.
 					}
 
 					sOpts := []options.SdsOption{}
-					sgPrivKey, ok := req.Options[sds.OptionSgPrivKey].(string)
+					privKey, ok := req.Options[sds.OptionSpfsPrivKey].(string)
 					if ok {
-						sOpts = append(sOpts, options.Sds.PrivKey(sgPrivKey))
+						sOpts = append(sOpts, options.Sds.PrivKey(privKey))
 					}
 
 					sdsFileHash, err := api.Sds().Upload(req.Context, f, sOpts...)

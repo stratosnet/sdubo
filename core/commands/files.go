@@ -17,6 +17,7 @@ import (
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
+	"github.com/ipfs/kubo/sds"
 
 	bservice "github.com/ipfs/boxo/blockservice"
 	offline "github.com/ipfs/boxo/exchange/offline"
@@ -180,6 +181,7 @@ var filesStatCmd = &cmds.Command{
 		cmds.BoolOption(filesHashOptionName, "Print only hash. Implies '--format=<hash>'. Conflicts with other format options."),
 		cmds.BoolOption(filesSizeOptionName, "Print only size. Implies '--format=<cumulsize>'. Conflicts with other format options."),
 		cmds.BoolOption(filesWithLocalOptionName, "Compute the amount of the dag that is local, and if possible the total size"),
+		cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management."),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		_, err := statGetFormatOptions(req)
@@ -192,6 +194,11 @@ var filesStatCmd = &cmds.Command{
 			return err
 		}
 
+		cfg, err := node.Repo.Config()
+		if err != nil {
+			return err
+		}
+
 		api, err := cmdenv.GetApi(env, req)
 		if err != nil {
 			return err
@@ -200,6 +207,16 @@ var filesStatCmd = &cmds.Command{
 		path, err := checkPath(req.Arguments[0])
 		if err != nil {
 			return err
+		}
+
+		if cfg.Sds.Enabled {
+			userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+			if userId != "" {
+				if path == "/" {
+					path = ""
+				}
+				path = fmt.Sprintf("/%s%s", userId, path)
+			}
 		}
 
 		withLocal, _ := req.Options[filesWithLocalOptionName].(bool)
@@ -440,10 +457,16 @@ being GC'ed.
 	},
 	Options: []cmds.Option{
 		cmds.BoolOption(filesParentsOptionName, "p", "Make parent directories as needed."),
+		cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management."),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		mkParents, _ := req.Options[filesParentsOptionName].(bool)
 		nd, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := nd.Repo.Config()
 		if err != nil {
 			return err
 		}
@@ -473,6 +496,13 @@ being GC'ed.
 
 		if dst[len(dst)-1] == '/' {
 			dst += gopath.Base(src)
+		}
+
+		if cfg.Sds.Enabled {
+			userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+			if userId != "" {
+				dst = fmt.Sprintf("/%s%s", userId, dst)
+			}
 		}
 
 		node, err := getNodeFromPath(req.Context, nd, api, src)
