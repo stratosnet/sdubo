@@ -2,7 +2,9 @@ package sds
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
@@ -158,4 +161,11 @@ func ExtendPath(dstp path.Path, srcp path.Path) (path.Path, error) {
 		return dstp, nil
 	}
 	return dstp, nil
+}
+
+func GenerateUserMFSHash(userID, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(userID))
+	hash := h.Sum(nil)
+	return uuid.NewSHA1(uuid.NameSpaceURL, hash).String()
 }

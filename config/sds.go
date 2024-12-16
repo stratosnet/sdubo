@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 
@@ -13,6 +14,8 @@ type Sds struct {
 	Enabled bool
 	// PrivateKey is the secret that will be used to sign uploading file to SDS (hex value, 0x not required)
 	PrivateKey string
+	// SUMKey (Spfs user management key) is a secret for folder hashing for user management
+	SUMKey string
 	// RPC for pp node (where it will be uploaded/dowloaded), multiaddr format
 	RPC string
 }
@@ -49,9 +52,17 @@ func (c *Sds) GetRpcAddress() (string, error) {
 func sdsConfig() Sds {
 	w, _ := fwsecp256k1.GenerateKey()
 	pkStr := "0x" + hex.EncodeToString(w.Bytes())
+
+	secret := make([]byte, 32)
+	_, err := rand.Read(secret)
+	if err != nil {
+		panic("failed to create secret for SUMKey")
+	}
+	sumKey := hex.EncodeToString(secret)
 	return Sds{
 		Enabled:    false,
 		PrivateKey: pkStr,
+		SUMKey:     sumKey,
 		RPC:        "/ip4/127.0.0.1/tcp/18281/http",
 	}
 }

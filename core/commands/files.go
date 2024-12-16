@@ -151,15 +151,46 @@ func (s *statOutput) UnmarshalJSON(data []byte) error {
 	return err
 }
 
+func spfsCreateUserFolder(cfg *config.Config, req *cmds.Request, root *mfs.Root, flush bool, prefix cid.Builder) error {
+	if cfg.Sds.Enabled {
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		if userId != "" {
+			dir := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			if _, err := mfs.Lookup(root, "/"+dir); err != nil {
+				return mfs.Mkdir(root, "/"+dir, mfs.MkdirOpts{
+					Mkparents:  false,
+					Flush:      flush,
+					CidBuilder: prefix,
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func spfsIsAllowed(cfg *config.Config, req *cmds.Request, path string) bool {
+	if cfg.Sds.Enabled {
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		if userId != "" {
+			spltPath := strings.Split(path, "/")
+			if len(spltPath) == 0 {
+				return true
+			}
+			uPath := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			if strings.Contains(spltPath[0], uPath) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func spfsPath(cfg *config.Config, req *cmds.Request, path string) string {
 	if cfg.Sds.Enabled {
 		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
 		if userId != "" {
-			if path == "/" {
-				path = ""
-			}
-			// TODO: Add hash(userId) folder gen
-			path = fmt.Sprintf("/%s%s", userId, path)
+			dir := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			path = fmt.Sprintf("/%s%s", dir, strings.TrimRight(path, "/"))
 		}
 	}
 	return path
@@ -494,6 +525,12 @@ being GC'ed.
 			return err
 		}
 		src = strings.TrimRight(src, "/")
+
+		if !spfsIsAllowed(cfg, req, src) {
+			return fmt.Errorf("cp: cannot get node from path %s: %s", src, err)
+		}
+
+		_ = spfsCreateUserFolder(cfg, req, nd.FilesRoot, flush, prefix)
 
 		dst, err := checkPath(req.Arguments[1])
 		if err != nil {
