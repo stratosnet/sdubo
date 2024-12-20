@@ -98,7 +98,6 @@ const (
 var (
 	cidVersionOption = cmds.IntOption(filesCidVersionOptionName, "cid-ver", "Cid version to use. (experimental)")
 	hashOption       = cmds.StringOption(filesHashOptionName, "Hash function to use. Will set Cid version to 1 if used. (experimental)")
-	spfsUserIdOption = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
 )
 
 var errFormat = errors.New("format was set by multiple options. Only one format option is allowed")
@@ -194,6 +193,35 @@ func spfsPath(cfg *config.Config, req *cmds.Request, path string) string {
 		}
 	}
 	return path
+}
+
+func spfsUpdateWithLinkNode(cfg *config.Config, req *cmds.Request, api iface.CoreAPI, node ipld.Node, path string) (ipld.Node, error) {
+	if !cfg.Sds.Enabled || !strings.Contains(path, "/ipfs/") {
+		return node, nil
+	}
+
+	proto, err := dag.DecodeProtobuf(node.RawData())
+	if err != nil {
+		return node, err
+	}
+
+	pbFSData, err := ft.FromBytes(proto.Data())
+	if err != nil {
+		return node, err
+	}
+
+	originalCid, err := sds.ParseLink(pbFSData.Data)
+	if err != nil {
+		return node, err
+	}
+
+	// <---> MODIFY <--->
+	node, err = api.Dag().Get(req.Context, originalCid)
+	if err != nil {
+		return node, err
+	}
+
+	return node, nil
 }
 
 const (
@@ -548,6 +576,8 @@ being GC'ed.
 		if err != nil {
 			return fmt.Errorf("cp: cannot get node from path %s: %s", src, err)
 		}
+
+		// node, _ = spfsUpdateWithLinkNode(cfg, req, api, node, src)
 
 		if mkParents {
 			err := ensureContainingDirectoryExists(nd.FilesRoot, dst, prefix)
