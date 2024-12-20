@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cid "github.com/ipfs/go-cid"
+	cmds "github.com/ipfs/go-ipfs-cmds"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/sds"
@@ -13,6 +14,11 @@ import (
 	"github.com/ipfs/boxo/path"
 	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/coreiface/options"
+)
+
+var (
+	spfsUserIdOption  = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
+	spfsPrivKeyOption = cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.")
 )
 
 func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
