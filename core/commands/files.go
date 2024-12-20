@@ -155,13 +155,12 @@ func spfsCreateUserFolder(cfg *config.Config, req *cmds.Request, root *mfs.Root,
 		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
 		if userId != "" {
 			dir := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
-			if _, err := mfs.Lookup(root, "/"+dir); err != nil {
-				return mfs.Mkdir(root, "/"+dir, mfs.MkdirOpts{
-					Mkparents:  false,
-					Flush:      flush,
-					CidBuilder: prefix,
-				})
-			}
+			err := mfs.Mkdir(root, "/"+dir, mfs.MkdirOpts{
+				Mkparents:  false,
+				Flush:      flush,
+				CidBuilder: prefix,
+			})
+			return err
 		}
 	}
 	return nil
@@ -280,6 +279,15 @@ var filesStatCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
+
+		flush, _ := req.Options[filesFlushOptionName].(bool)
+
+		prefix, err := getPrefixNew(req)
+		if err != nil {
+			return err
+		}
+
+		_ = spfsCreateUserFolder(cfg, req, node.FilesRoot, flush, prefix)
 
 		// NOTE: User management patcher
 		path = spfsPath(cfg, req, path)
