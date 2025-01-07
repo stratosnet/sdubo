@@ -156,7 +156,7 @@ func spfsCreateUserFolder(cfg *config.Config, req *cmds.Request, root *mfs.Root,
 	if cfg.Sds.Enabled {
 		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
 		if userId != "" {
-			dir := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			dir := sds.GenerateUserMFSHash(userId, "sds")
 			err := mfs.Mkdir(root, "/"+dir, mfs.MkdirOpts{
 				Mkparents:  false,
 				Flush:      flush,
@@ -176,7 +176,7 @@ func spfsIsAllowed(cfg *config.Config, req *cmds.Request, path string) bool {
 			if len(spltPath) == 0 {
 				return true
 			}
-			uPath := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			uPath := sds.GenerateUserMFSHash(userId, "sds")
 			if strings.Contains(spltPath[0], uPath) {
 				return false
 			}
@@ -189,7 +189,7 @@ func spfsPath(cfg *config.Config, req *cmds.Request, path string) string {
 	if cfg.Sds.Enabled {
 		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
 		if userId != "" {
-			dir := sds.GenerateUserMFSHash(userId, cfg.Sds.SUMKey)
+			dir := sds.GenerateUserMFSHash(userId, "sds")
 			path = fmt.Sprintf("/%s%s", dir, strings.TrimRight(path, "/"))
 		}
 	}
