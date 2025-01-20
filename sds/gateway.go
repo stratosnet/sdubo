@@ -15,6 +15,7 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/kubo/config"
+	"github.com/ipfs/kubo/misc/sutil"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 )
 
@@ -48,11 +49,11 @@ func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGSe
 }
 
 func readAndResetGatewayResponse(n *gateway.GetResponse) ([]byte, error) {
-	fileReader, ok := getDynamicField(n, "bytes").(io.ReadCloser)
+	fileReader, ok := sutil.GetDynamicField(n, "bytes").(io.ReadCloser)
 	if !ok {
 		return []byte{}, fmt.Errorf("not a file reader")
 	}
-	fileSize, ok := getDynamicField(n, "bytesSize").(int64)
+	fileSize, ok := sutil.GetDynamicField(n, "bytesSize").(int64)
 	if !ok {
 		return []byte{}, fmt.Errorf("no file size")
 	}
@@ -112,7 +113,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 
 		if c.Version() == 1 {
-			npath_, errS := ExtendPath(path.FromCid(cid.NewCidV0(c.Hash())), path_)
+			npath_, errS := sutil.ExtendPath(path.FromCid(cid.NewCidV0(c.Hash())), path_)
 			if errS != nil {
 				return gateway.ContentPathMetadata{}, nil, errS
 			}
@@ -159,7 +160,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 	}
 
-	isCar, _ := IsCAR(files.NewBytesFile(fileData))
+	isCar, _ := sutil.IsCAR(files.NewBytesFile(fileData))
 	if isCar {
 		dp := NewDagParser(ctx, sb.dag, sb.bs, sb.pin)
 		// TODO: Add a way to import only if it is not exists
@@ -168,7 +169,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		sdsP, errS = ExtendPath(sdsP, path_)
+		sdsP, errS = sutil.ExtendPath(sdsP, path_)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}

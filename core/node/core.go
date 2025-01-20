@@ -26,6 +26,8 @@ import (
 
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/node/helpers"
+	"github.com/ipfs/kubo/mfscl"
+	mfsconn "github.com/ipfs/kubo/mfscl/conn"
 	"github.com/ipfs/kubo/repo"
 )
 
@@ -150,9 +152,27 @@ func Dag(bs blockservice.BlockService) format.DAGService {
 	return merkledag.NewDAGService(bs)
 }
 
+// MFSCluster creates mfs cluster conn
+func MFSCluster(repo repo.Repo, cfg *config.Config) *mfscl.MFSCluster {
+	var (
+		connector mfsconn.Connector
+		err       error
+	)
+	mfsClust := &mfscl.MFSCluster{}
+	if cfg.MfsConn.DSN == "native" {
+		connector = mfsconn.NewDsWrapper(repo.Datastore())
+	} else {
+		connector, err = mfsconn.Parse(cfg.MfsConn.DSN)
+		if err != nil {
+			panic(err)
+		}
+	}
+	mfsClust.Provide(connector)
+	return mfsClust
+}
+
 // Files loads persisted MFS root
-func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore) (*mfs.Root, error) {
-	dsk := datastore.NewKey("/local/filesroot")
+func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster, cfg *config.Config) (*mfs.Root, error) {
 	pf := func(ctx context.Context, c cid.Cid) error {
 		rootDS := repo.Datastore()
 		if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
@@ -162,15 +182,22 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 			return err
 		}
 
-		if err := rootDS.Put(ctx, dsk, c.Bytes()); err != nil {
+		if err := mfscluster.Put(ctx, c.Bytes()); err != nil {
 			return err
 		}
-		return rootDS.Sync(ctx, dsk)
+		return mfscluster.Sync(ctx)
+		// NOTE: Commented prev impl for future migration check
+		// if err := rootDS.Put(ctx, dsk, c.Bytes()); err != nil {
+		// 	return err
+		// }
+		// return rootDS.Sync(ctx, dsk)
 	}
 
 	var nd *merkledag.ProtoNode
 	ctx := helpers.LifecycleCtx(mctx, lc)
-	val, err := repo.Datastore().Get(ctx, dsk)
+	val, err := mfscluster.Get(ctx)
+	// NOTE: Commented prev impl for future migration check
+	// val, err := repo.Datastore().Get(ctx, dsk)
 
 	switch {
 	case err == datastore.ErrNotFound || val == nil:

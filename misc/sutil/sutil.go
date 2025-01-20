@@ -1,4 +1,4 @@
-package sds
+package sutil
 
 import (
 	"bytes"
@@ -18,12 +18,13 @@ import (
 	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
 	gocarv2 "github.com/ipld/go-car/v2"
+	ma "github.com/multiformats/go-multiaddr"
 	mbase "github.com/multiformats/go-multibase"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/stratosnet/sds/framework/crypto"
 )
 
-func randomFileName(size int, ext string) (string, error) {
+func RandomFileName(size int, ext string) (string, error) {
 	b := make([]byte, size)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -41,13 +42,13 @@ func CreateFileHash(fileData []byte) string {
 	return fileCid.Encode(encoder)
 }
 
-func getDynamicField(i any, key string) any {
+func GetDynamicField(i any, key string) any {
 	field := reflect.ValueOf(i).Elem().FieldByName(key)
 	// unlock for modification
 	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
 }
 
-func setDynamicField(i any, key string, value any) error {
+func SetDynamicField(i any, key string, value any) error {
 	// Get the reflection value of the struct
 	v := reflect.ValueOf(i).Elem()
 
@@ -168,4 +169,33 @@ func GenerateUserMFSHash(userID, secret string) string {
 	h.Write([]byte(userID))
 	hash := h.Sum(nil)
 	return uuid.NewSHA1(uuid.NameSpaceURL, hash).String()
+}
+
+func ParseHTTPAddress(addr string) (string, error) {
+	maddr, err := ma.NewMultiaddr(addr)
+	if err != nil {
+		return "", err
+	}
+
+	var ip, port, protocol string
+
+	components := ma.Split(maddr)
+	for _, c := range components {
+		comp := c.(*ma.Component)
+		switch comp.Protocol().Name {
+		case "ip4", "ip6":
+			ip = comp.Value()
+		case "tcp":
+			port = comp.Value()
+		case "http", "https":
+			protocol = comp.Protocol().Name
+		}
+	}
+
+	if ip == "" || port == "" || protocol == "" {
+		return "", fmt.Errorf("multiaddr must contain both ip and tcp and http")
+	}
+
+	url := fmt.Sprintf("%s://%s:%s", protocol, ip, port)
+	return url, nil
 }

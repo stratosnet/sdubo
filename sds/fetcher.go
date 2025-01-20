@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ipfs/kubo/config"
+	"github.com/ipfs/kubo/misc/sutil"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
@@ -50,7 +51,7 @@ type Fetcher struct {
 }
 
 func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
-	addr, err := cfg.GetRpcAddress()
+	addr, err := sutil.ParseHTTPAddress(cfg.RPC)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +137,7 @@ func (f *Fetcher) getWallet(privKey string) (*SdsWallet, error) {
 }
 
 func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
-	fileHash := CreateFileHash(fileData)
+	fileHash := sutil.CreateFileHash(fileData)
 
 	wallet, err := f.getWallet(privKey)
 	if err != nil {
@@ -149,7 +150,7 @@ func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 	}
 
 	// TODO: How to get file name?
-	fileName, err := randomFileName(16, "txt")
+	fileName, err := sutil.RandomFileName(16, "txt")
 	if err != nil {
 		return "", err
 	}
