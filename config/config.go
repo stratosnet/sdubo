@@ -42,6 +42,8 @@ type Config struct {
 
 	// sds
 	Sds Sds
+	// mfs connection
+	MfsConn MfsConn
 
 	Internal Internal // experimental/unstable options
 }

@@ -82,7 +82,8 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			DownloadSources: []string{},
 			Keep:            "",
 		},
-		Sds: sdsConfig(),
+		Sds:     sdsConfig(),
+		MfsConn: mfsConnConfig(),
 	}
 
 	return conf, nil

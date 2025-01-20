@@ -72,7 +72,6 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	if err != nil {
 		return err
 	}
-	// req.Header.Set("X-Custom-Header", "myvalue")
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{

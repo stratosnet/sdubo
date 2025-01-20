@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ipfs/kubo/misc/sutil"
 	"github.com/stratosnet/sds/framework/utils"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 	ppns "github.com/stratosnet/sds/pp/namespace"
@@ -26,11 +27,11 @@ func TestRPC_Upload(t *testing.T) {
 	fmt.Println("ozone", oz.Ozone)
 	fmt.Println("seq", oz.SequenceNumber)
 
-	fileName, err := randomFileName(16, "txt")
+	fileName, err := sutil.RandomFileName(16, "txt")
 	assert.Equal(t, err, nil)
 
 	fileData := make([]byte, ppns.FILE_DATA_SAFE_SIZE+1)
-	fileHash := CreateFileHash(fileData)
+	fileHash := sutil.CreateFileHash(fileData)
 	fmt.Println("file hash", fileHash)
 
 	_, err = rand.Read(fileData)

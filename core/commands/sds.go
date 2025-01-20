@@ -8,6 +8,7 @@ import (
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/misc/sutil"
 	"github.com/ipfs/kubo/sds"
 
 	"github.com/ipfs/boxo/files"
@@ -53,7 +54,7 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 		}
 	}
 
-	isCar, _ := sds.IsCAR(f)
+	isCar, _ := sutil.IsCAR(f)
 	// after fetched car, we need to be sure it is a car, otherwise handle it as ipfs file
 	if isCar {
 		// offline api after to ensure we do not reach out to the network for any reason
@@ -69,7 +70,7 @@ func getCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context,
 			return nil, err
 		}
 
-		sdsP, err = sds.ExtendPath(sdsP, p)
+		sdsP, err = sutil.ExtendPath(sdsP, p)
 		if err != nil {
 			return nil, err
 		}

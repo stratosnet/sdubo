@@ -54,6 +54,7 @@ import (
 	"github.com/ipfs/kubo/core/node"
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/fuse/mount"
+	"github.com/ipfs/kubo/mfscl"
 	"github.com/ipfs/kubo/p2p"
 	"github.com/ipfs/kubo/repo"
 	irouting "github.com/ipfs/kubo/routing"
@@ -90,6 +91,7 @@ type IpfsNode struct {
 	Discovery                   mdns.Service              `optional:"true"`
 	FilesRoot                   *mfs.Root
 	RecordValidator             record.Validator
+	MFSCluster                  *mfscl.MFSCluster
 
 	// Online
 	PeerHost                  p2phost.Host               `optional:"true"` // the network host (server+client)

@@ -16,6 +16,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	ipldlegacy "github.com/ipfs/go-ipld-legacy"
+	"github.com/ipfs/kubo/misc/sutil"
 	gocar "github.com/ipld/go-car"
 	gocarv2 "github.com/ipld/go-car/v2"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
@@ -195,7 +196,7 @@ func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node) (path.Path, er
 	if err != nil {
 		return nil, err
 	}
-	fileHash := CreateFileHash(fileData)
+	fileHash := sutil.CreateFileHash(fileData)
 
 	mFile, err := NewSdsFile(cid_, fileHash)
 	if err != nil {
