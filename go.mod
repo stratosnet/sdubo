@@ -73,6 +73,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/prometheus/client_golang v1.20.5
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/stratosnet/sds v0.12.4
 	github.com/stratosnet/sds/framework v0.0.0-20241024172020-1c91ede1d55d
 	github.com/stratosnet/sds/sds-msg v0.0.0-20241024172020-1c91ede1d55d
@@ -138,6 +139,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elastic/gosigar v0.14.3 // indirect
 	github.com/fatih/color v1.15.0 // indirect

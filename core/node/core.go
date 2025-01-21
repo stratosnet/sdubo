@@ -168,7 +168,7 @@ func MFSCluster(repo repo.Repo, cfg *config.Config) *mfscl.MFSCluster {
 }
 
 // Files loads persisted MFS root
-func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster, cfg *config.Config) (*mfs.Root, error) {
+func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster) (*mfs.Root, error) {
 	pf := func(ctx context.Context, c cid.Cid) error {
 		rootDS := repo.Datastore()
 		if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
@@ -177,10 +177,11 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 		if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
 			return err
 		}
-
+		fmt.Println("before mfscluster.Put")
 		if err := mfscluster.Put(ctx, c.Bytes()); err != nil {
 			return err
 		}
+		fmt.Println("after mfscluster.Put")
 		return mfscluster.Sync(ctx)
 		// NOTE: Commented prev impl for future migration check
 		// if err := rootDS.Put(ctx, dsk, c.Bytes()); err != nil {
@@ -191,7 +192,9 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 
 	var nd *merkledag.ProtoNode
 	ctx := helpers.LifecycleCtx(mctx, lc)
+	fmt.Println("before mfscluster.Get")
 	val, err := mfscluster.Get(ctx)
+	fmt.Println("after mfscluster.Get")
 	// NOTE: Commented prev impl for future migration check
 	// val, err := repo.Datastore().Get(ctx, dsk)
 
