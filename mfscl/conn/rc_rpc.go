@@ -1,3 +1,4 @@
+// NOTE: Something with bytes encoding with rest-api, should be investigated in order to be workable
 package conn
 
 import (
@@ -34,7 +35,7 @@ func wrapRcReq(key string, val string) []byte {
 	return r
 }
 
-var timeout = 10 * time.Second
+var rpcTimeout = 10 * time.Second
 
 type rcRpc struct {
 	httpRpcUrl string
@@ -46,7 +47,7 @@ func NewRcRpc(httpRpcUrl string) (*rcRpc, error) {
 	}, nil
 }
 
-func (rpc *rcRpc) sendRequest(path string, key string, val string) (string, error) {
+func (rpc *rcRpc) sendRequest(path string, key string, val string) ([]byte, error) {
 	// wrap to the json-rpc message
 	request := wrapRcReq(key, val)
 
@@ -61,16 +62,16 @@ func (rpc *rcRpc) sendRequest(path string, key string, val string) (string, erro
 	// http post
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(request))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
-		Timeout: timeout,
+		Timeout: rpcTimeout,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	body, _ := io.ReadAll(resp.Body)
@@ -84,27 +85,27 @@ func (rpc *rcRpc) sendRequest(path string, key string, val string) (string, erro
 
 	if len(body) == 0 {
 		logger.Error("emptry body after read buffer")
-		return "", fmt.Errorf("empty response body")
+		return nil, fmt.Errorf("empty response body")
 	}
 
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("failed to get/put key")
+		return nil, fmt.Errorf("failed to get/put key")
 	}
 
 	// handle rsp
 	var rawJsonStr string
-	err = json.Unmarshal([]byte(body), &rawJsonStr)
+	err = json.Unmarshal(body, &rawJsonStr)
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
 	var result rcRes
 	err = json.Unmarshal([]byte(rawJsonStr), &result)
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
-	return result[0], nil
+	return []byte(result[0]), nil
 }
 
 func (rpc *rcRpc) Key() any {
@@ -116,7 +117,7 @@ func (rpc *rcRpc) Get(_ context.Context, key any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []byte(value), nil
+	return value, nil
 }
 
 func (rpc *rcRpc) Put(_ context.Context, key any, value []byte) error {

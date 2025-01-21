@@ -21,7 +21,7 @@ func TestRPC_SimplePutAndGet(t *testing.T) {
 	rpc, _ := NewRcRpc("http://127.0.0.1:9000")
 
 	requestKey := generateRandomString(16)
-	expectedResult := []byte("Works")
+	expectedResult := []byte{18, 32, 89, 184, 61, 176, 74, 172, 193, 30, 16, 215, 130, 92, 225, 10, 203, 158, 214, 245, 187, 163, 126, 230, 54, 12, 96, 124, 209, 59, 230, 244, 74, 108}
 
 	// 1. Check key for empty
 	_, err := rpc.Get(context.TODO(), requestKey)
