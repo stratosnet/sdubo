@@ -83,8 +83,12 @@ func BestEffortRoots(filesRoot *mfs.Root) ([]cid.Cid, error) {
 	return []cid.Cid{rootDag.Cid()}, nil
 }
 
-func GarbageCollect(n *core.IpfsNode, ctx context.Context) error {
-	roots, err := BestEffortRoots(n.FilesRoot)
+func GarbageCollect(n *core.IpfsNode, ctx context.Context, ns string) error {
+	filesRoot, err := n.GetMFSRoot(ns)
+	if err != nil {
+		return err
+	}
+	roots, err := BestEffortRoots(filesRoot)
 	if err != nil {
 		return err
 	}
@@ -147,10 +151,17 @@ func (e *MultiError) Error() string {
 	return buf.String()
 }
 
-func GarbageCollectAsync(n *core.IpfsNode, ctx context.Context) <-chan gc.Result {
-	roots, err := BestEffortRoots(n.FilesRoot)
+func GarbageCollectAsync(n *core.IpfsNode, ctx context.Context, ns string) <-chan gc.Result {
+	out := make(chan gc.Result)
+	filesRoot, err := n.GetMFSRoot(ns)
 	if err != nil {
-		out := make(chan gc.Result)
+		out <- gc.Result{Error: err}
+		close(out)
+		return out
+	}
+
+	roots, err := BestEffortRoots(filesRoot)
+	if err != nil {
 		out <- gc.Result{Error: err}
 		close(out)
 		return out
@@ -159,7 +170,7 @@ func GarbageCollectAsync(n *core.IpfsNode, ctx context.Context) <-chan gc.Result
 	return gc.GC(ctx, n.Blockstore, n.Repo.Datastore(), n.Pinning, roots)
 }
 
-func PeriodicGC(ctx context.Context, node *core.IpfsNode) error {
+func PeriodicGC(ctx context.Context, node *core.IpfsNode, ns string) error {
 	cfg, err := node.Repo.Config()
 	if err != nil {
 		return err
@@ -189,22 +200,22 @@ func PeriodicGC(ctx context.Context, node *core.IpfsNode) error {
 			return nil
 		case <-time.After(period):
 			// the private func maybeGC doesn't compute storageMax, storageGC, slackGC so that they are not re-computed for every cycle
-			if err := gc.maybeGC(ctx, 0); err != nil {
+			if err := gc.maybeGC(ctx, ns, 0); err != nil {
 				log.Error(err)
 			}
 		}
 	}
 }
 
-func ConditionalGC(ctx context.Context, node *core.IpfsNode, offset uint64) error {
+func ConditionalGC(ctx context.Context, node *core.IpfsNode, ns string, offset uint64) error {
 	gc, err := NewGC(node)
 	if err != nil {
 		return err
 	}
-	return gc.maybeGC(ctx, offset)
+	return gc.maybeGC(ctx, ns, offset)
 }
 
-func (gc *GC) maybeGC(ctx context.Context, offset uint64) error {
+func (gc *GC) maybeGC(ctx context.Context, ns string, offset uint64) error {
 	storage, err := gc.Repo.GetStorageUsage(ctx)
 	if err != nil {
 		return err
@@ -218,7 +229,7 @@ func (gc *GC) maybeGC(ctx context.Context, offset uint64) error {
 		// Do GC here
 		log.Info("Watermark exceeded. Starting repo GC...")
 
-		if err := GarbageCollect(gc.Node, ctx); err != nil {
+		if err := GarbageCollect(gc.Node, ctx, ns); err != nil {
 			return err
 		}
 		log.Infof("Repo GC done. See `ipfs repo stat` to see how much space got freed.\n")

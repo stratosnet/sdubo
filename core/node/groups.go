@@ -380,6 +380,7 @@ var Core = fx.Options(
 	fx.Provide(Pinning),
 	fx.Provide(MFSCluster),
 	fx.Provide(Files),
+	fx.Provide(NamespaceFiles),
 )
 
 func Networked(bcfg *BuildCfg, cfg *config.Config, userResourceOverrides rcmgr.PartialLimitConfig) fx.Option {

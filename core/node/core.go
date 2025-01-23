@@ -172,7 +172,10 @@ func MFSCluster(repo repo.Repo, cfg *config.Config) *mfscl.MFSCluster {
 }
 
 // Files loads persisted MFS root
-func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster) (*mfs.Root, error) {
+// Deprecated: this code will not be used in this project anymore as we could handle more flexible with mfscluster
+// but we should keep it for future marks and updates for git merge
+func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore) (*mfs.Root, error) {
+	dsk := datastore.NewKey("/local/filesroot")
 	pf := func(ctx context.Context, c cid.Cid) error {
 		rootDS := repo.Datastore()
 		if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
@@ -181,26 +184,16 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 		if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
 			return err
 		}
-		fmt.Println("before mfscluster.Put")
-		if err := mfscluster.Put(ctx, c.Bytes()); err != nil {
+
+		if err := rootDS.Put(ctx, dsk, c.Bytes()); err != nil {
 			return err
 		}
-		fmt.Println("after mfscluster.Put")
-		return mfscluster.Sync(ctx)
-		// NOTE: Commented prev impl for future migration check
-		// if err := rootDS.Put(ctx, dsk, c.Bytes()); err != nil {
-		// 	return err
-		// }
-		// return rootDS.Sync(ctx, dsk)
+		return rootDS.Sync(ctx, dsk)
 	}
 
 	var nd *merkledag.ProtoNode
 	ctx := helpers.LifecycleCtx(mctx, lc)
-	fmt.Println("before mfscluster.Get")
-	val, err := mfscluster.Get(ctx)
-	fmt.Println("after mfscluster.Get")
-	// NOTE: Commented prev impl for future migration check
-	// val, err := repo.Datastore().Get(ctx, dsk)
+	val, err := repo.Datastore().Get(ctx, dsk)
 
 	switch {
 	case err == datastore.ErrNotFound || val == nil:
@@ -240,4 +233,69 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 	})
 
 	return root, err
+}
+
+// NamespaceFiles loads persisted MFS root for custom namespace
+func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster) mfscl.GetRoot {
+	getNode := func(ctx context.Context, ns string) (*merkledag.ProtoNode, error) {
+		val, err := mfscluster.Get(ctx, ns)
+
+		switch {
+		case err == datastore.ErrNotFound || val == nil:
+			nd := unixfs.EmptyDirNode()
+			err := dag.Add(ctx, nd)
+			if err != nil {
+				return nil, fmt.Errorf("failure writing filesroot to dagstore: %s", err)
+			}
+			return nd, nil
+		case err == nil:
+			c, err := cid.Cast(val)
+			if err != nil {
+				return nil, err
+			}
+
+			// NOTE: Potential problems on start if we are not using offline exchange?
+			rnd, err := dag.Get(ctx, c)
+			if err != nil {
+				return nil, fmt.Errorf("error loading filesroot from dagservice: %s", err)
+			}
+
+			pbnd, ok := rnd.(*merkledag.ProtoNode)
+			if !ok {
+				return nil, merkledag.ErrNotProtobuf
+			}
+			return pbnd, nil
+		default:
+			return nil, err
+		}
+	}
+
+	var getRoot mfscl.GetRoot = func(ns string) (*mfs.Root, error) {
+		ctx := helpers.LifecycleCtx(mctx, lc)
+
+		pf := func(ctx context.Context, c cid.Cid) error {
+			rootDS := repo.Datastore()
+			if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
+				return err
+			}
+			if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
+				return err
+			}
+			if err := mfscluster.Put(ctx, ns, c.Bytes()); err != nil {
+				return err
+			}
+			return mfscluster.Sync(ctx, ns)
+		}
+
+		nd, err := getNode(ctx, ns)
+		if err != nil {
+			return nil, err
+		}
+
+		root, err := mfs.NewRoot(ctx, dag, nd, pf)
+
+		return root, err
+	}
+
+	return getRoot
 }

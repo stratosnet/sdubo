@@ -92,6 +92,7 @@ type IpfsNode struct {
 	Discovery                   mdns.Service              `optional:"true"`
 	FilesRoot                   *mfs.Root
 	RecordValidator             record.Validator
+	GetNamespaceFilesRoot       mfscl.GetRoot
 	MFSCluster                  *mfscl.MFSCluster
 
 	// Online
@@ -241,6 +242,22 @@ func (n *IpfsNode) loadTempBootstrapPeers(ctx context.Context) ([]peer.AddrInfo,
 		return nil, err
 	}
 	return config.ParseBootstrapPeers(addrs)
+}
+
+func (n *IpfsNode) GetMFSRoot(ns string) (*mfs.Root, error) {
+	var (
+		root *mfs.Root
+		err  error
+	)
+	if ns != "" {
+		root, err = n.GetNamespaceFilesRoot(ns)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		root = n.FilesRoot
+	}
+	return root, nil
 }
 
 type ConstructPeerHostOpts struct {
