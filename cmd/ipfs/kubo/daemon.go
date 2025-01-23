@@ -37,6 +37,7 @@ import (
 	fsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/ipfs/kubo/repo/fsrepo/migrations"
 	"github.com/ipfs/kubo/repo/fsrepo/migrations/ipfsfetcher"
+	"github.com/ipfs/kubo/sds"
 	goprocess "github.com/jbenet/goprocess"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	pnet "github.com/libp2p/go-libp2p/core/pnet"
@@ -183,6 +184,8 @@ Headers.
 		cmds.BoolOption(enableIPNSPubSubKwd, "Enable IPNS over pubsub. Implicitly enables pubsub, overrides Ipns.UsePubsub config."),
 		cmds.BoolOption(enableMultiplexKwd, "DEPRECATED"),
 		cmds.StringOption(agentVersionSuffix, "Optional suffix to the AgentVersion presented by `ipfs id` and exposed via libp2p identify protocol."),
+
+		cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management."),
 
 		// TODO: add way to override addresses. tricky part: updating the config if also --init.
 		// cmds.StringOption(apiAddrKwd, "Address for the daemon rpc API (overrides config)"),
@@ -1060,9 +1063,11 @@ func maybeRunGC(req *cmds.Request, node *core.IpfsNode) (<-chan error, error) {
 		return nil, nil
 	}
 
+	ns, _ := req.Options[sds.OptionSpfsUserId].(string)
+
 	errc := make(chan error)
 	go func() {
-		errc <- corerepo.PeriodicGC(req.Context, node)
+		errc <- corerepo.PeriodicGC(req.Context, node, ns)
 		close(errc)
 	}()
 	return errc, nil

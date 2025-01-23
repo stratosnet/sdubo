@@ -17,6 +17,7 @@ import (
 	fsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/ipfs/kubo/repo/fsrepo/migrations"
 	"github.com/ipfs/kubo/repo/fsrepo/migrations/ipfsfetcher"
+	"github.com/ipfs/kubo/sds"
 
 	humanize "github.com/dustin/go-humanize"
 	bstore "github.com/ipfs/boxo/blockstore"
@@ -72,6 +73,7 @@ order to reclaim hard disk space.
 		cmds.BoolOption(repoStreamErrorsOptionName, "Stream errors."),
 		cmds.BoolOption(repoQuietOptionName, "q", "Write minimal output."),
 		cmds.BoolOption(repoSilentOptionName, "Write no output."),
+		spfsUserIdOption,
 	},
 	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
 		n, err := cmdenv.GetNode(env)
@@ -82,7 +84,8 @@ order to reclaim hard disk space.
 		silent, _ := req.Options[repoSilentOptionName].(bool)
 		streamErrors, _ := req.Options[repoStreamErrorsOptionName].(bool)
 
-		gcOutChan := corerepo.GarbageCollectAsync(n, req.Context)
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		gcOutChan := corerepo.GarbageCollectAsync(n, req.Context, userId)
 
 		if streamErrors {
 			errs := false

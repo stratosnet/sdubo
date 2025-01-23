@@ -17,7 +17,6 @@ import (
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/commands/cmdenv"
-	"github.com/ipfs/kubo/misc/sutil"
 	"github.com/ipfs/kubo/sds"
 
 	bservice "github.com/ipfs/boxo/blockservice"
@@ -151,79 +150,6 @@ func (s *statOutput) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-func spfsCreateUserFolder(cfg *config.Config, req *cmds.Request, root *mfs.Root, flush bool, prefix cid.Builder) error {
-	if cfg.Sds.Enabled {
-		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-		if userId != "" {
-			dir := sutil.GenerateUserMFSHash(userId, "sds")
-			err := mfs.Mkdir(root, "/"+dir, mfs.MkdirOpts{
-				Mkparents:  false,
-				Flush:      flush,
-				CidBuilder: prefix,
-			})
-			return err
-		}
-	}
-	return nil
-}
-
-func spfsIsAllowed(cfg *config.Config, req *cmds.Request, path string) bool {
-	if cfg.Sds.Enabled {
-		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-		if userId != "" {
-			spltPath := strings.Split(path, "/")
-			if len(spltPath) == 0 {
-				return true
-			}
-			uPath := sutil.GenerateUserMFSHash(userId, "sds")
-			if strings.Contains(spltPath[0], uPath) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func spfsPath(cfg *config.Config, req *cmds.Request, path string) string {
-	if cfg.Sds.Enabled {
-		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-		if userId != "" {
-			dir := sutil.GenerateUserMFSHash(userId, "sds")
-			path = fmt.Sprintf("/%s%s", dir, strings.TrimRight(path, "/"))
-		}
-	}
-	return path
-}
-
-func spfsUpdateWithLinkNode(cfg *config.Config, req *cmds.Request, api iface.CoreAPI, node ipld.Node, path string) (ipld.Node, error) {
-	if !cfg.Sds.Enabled || !strings.Contains(path, "/ipfs/") {
-		return node, nil
-	}
-
-	proto, err := dag.DecodeProtobuf(node.RawData())
-	if err != nil {
-		return node, err
-	}
-
-	pbFSData, err := ft.FromBytes(proto.Data())
-	if err != nil {
-		return node, err
-	}
-
-	originalCid, err := sds.ParseLink(pbFSData.Data)
-	if err != nil {
-		return node, err
-	}
-
-	// <---> MODIFY <--->
-	node, err = api.Dag().Get(req.Context, originalCid)
-	if err != nil {
-		return node, err
-	}
-
-	return node, nil
-}
-
 const (
 	defaultStatFormat = `<hash>
 Size: <size>
@@ -266,11 +192,6 @@ var filesStatCmd = &cmds.Command{
 			return err
 		}
 
-		cfg, err := node.Repo.Config()
-		if err != nil {
-			return err
-		}
-
 		api, err := cmdenv.GetApi(env, req)
 		if err != nil {
 			return err
@@ -280,18 +201,6 @@ var filesStatCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
-
-		flush, _ := req.Options[filesFlushOptionName].(bool)
-
-		prefix, err := getPrefixNew(req)
-		if err != nil {
-			return err
-		}
-
-		_ = spfsCreateUserFolder(cfg, req, node.FilesRoot, flush, prefix)
-
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
 
 		withLocal, _ := req.Options[filesWithLocalOptionName].(bool)
 
@@ -311,7 +220,7 @@ var filesStatCmd = &cmds.Command{
 			dagserv = node.DAG
 		}
 
-		nd, err := getNodeFromPath(req.Context, node, api, path)
+		nd, err := getNodeFromPath(req.Context, req, node, api, path)
 		if err != nil {
 			return err
 		}
@@ -540,7 +449,8 @@ being GC'ed.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -563,12 +473,6 @@ being GC'ed.
 		}
 		src = strings.TrimRight(src, "/")
 
-		if !spfsIsAllowed(cfg, req, src) {
-			return fmt.Errorf("cp: cannot get node from path %s: %s", src, err)
-		}
-
-		_ = spfsCreateUserFolder(cfg, req, nd.FilesRoot, flush, prefix)
-
 		dst, err := checkPath(req.Arguments[1])
 		if err != nil {
 			return err
@@ -578,30 +482,25 @@ being GC'ed.
 			dst += gopath.Base(src)
 		}
 
-		// NOTE: User management patcher
-		dst = spfsPath(cfg, req, dst)
-
-		node, err := getNodeFromPath(req.Context, nd, api, src)
+		node, err := getNodeFromPath(req.Context, req, nd, api, src)
 		if err != nil {
 			return fmt.Errorf("cp: cannot get node from path %s: %s", src, err)
 		}
 
-		// node, _ = spfsUpdateWithLinkNode(cfg, req, api, node, src)
-
 		if mkParents {
-			err := ensureContainingDirectoryExists(nd.FilesRoot, dst, prefix)
+			err := ensureContainingDirectoryExists(filesRoot, dst, prefix)
 			if err != nil {
 				return err
 			}
 		}
 
-		err = mfs.PutNode(nd.FilesRoot, dst, node)
+		err = mfs.PutNode(filesRoot, dst, node)
 		if err != nil {
 			return fmt.Errorf("cp: cannot put node in path %s: %s", dst, err)
 		}
 
 		if flush {
-			_, err := mfs.FlushPath(req.Context, nd.FilesRoot, dst)
+			_, err := mfs.FlushPath(req.Context, filesRoot, dst)
 			if err != nil {
 				return fmt.Errorf("cp: cannot flush the created file %s: %s", dst, err)
 			}
@@ -611,7 +510,7 @@ being GC'ed.
 	},
 }
 
-func getNodeFromPath(ctx context.Context, node *core.IpfsNode, api iface.CoreAPI, p string) (ipld.Node, error) {
+func getNodeFromPath(ctx context.Context, req *cmds.Request, node *core.IpfsNode, api iface.CoreAPI, p string) (ipld.Node, error) {
 	switch {
 	case strings.HasPrefix(p, "/ipfs/"):
 		pth, err := path.NewPath(p)
@@ -621,7 +520,12 @@ func getNodeFromPath(ctx context.Context, node *core.IpfsNode, api iface.CoreAPI
 
 		return api.ResolveNode(ctx, pth)
 	default:
-		fsn, err := mfs.Lookup(node.FilesRoot, p)
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := node.GetMFSRoot(userId)
+		if err != nil {
+			return nil, err
+		}
+		fsn, err := mfs.Lookup(filesRoot, p)
 		if err != nil {
 			return nil, err
 		}
@@ -687,15 +591,13 @@ Examples:
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
 
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
-
-		fsn, err := mfs.Lookup(nd.FilesRoot, path)
+		fsn, err := mfs.Lookup(filesRoot, path)
 		if err != nil {
 			return err
 		}
@@ -811,20 +713,18 @@ Examples:
 			return err
 		}
 
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
+		if err != nil {
+			return err
+		}
+
 		path, err := checkPath(req.Arguments[0])
 		if err != nil {
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
-		if err != nil {
-			return err
-		}
-
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
-
-		fsn, err := mfs.Lookup(nd.FilesRoot, path)
+		fsn, err := mfs.Lookup(filesRoot, path)
 		if err != nil {
 			return err
 		}
@@ -911,7 +811,8 @@ Example:
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -927,13 +828,9 @@ Example:
 			return err
 		}
 
-		// NOTE: User management patcher
-		src = spfsPath(cfg, req, src)
-		dst = spfsPath(cfg, req, dst)
-
-		err = mfs.Mv(nd.FilesRoot, src, dst)
+		err = mfs.Mv(filesRoot, src, dst)
 		if err == nil && flush {
-			_, err = mfs.FlushPath(req.Context, nd.FilesRoot, "/")
+			_, err = mfs.FlushPath(req.Context, filesRoot, "/")
 		}
 		return err
 	},
@@ -1029,13 +926,16 @@ See '--to-files' in 'ipfs add --help' for more information.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
 
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
+		cfg, err := nd.Repo.Config()
+		if err != nil {
+			return err
+		}
 
 		create, _ := req.Options[filesCreateOptionName].(bool)
 		mkParents, _ := req.Options[filesParentsOptionName].(bool)
@@ -1059,13 +959,13 @@ See '--to-files' in 'ipfs add --help' for more information.
 		}
 
 		if mkParents {
-			err := ensureContainingDirectoryExists(nd.FilesRoot, path, prefix)
+			err := ensureContainingDirectoryExists(filesRoot, path, prefix)
 			if err != nil {
 				return err
 			}
 		}
 
-		fi, err := getFileHandle(nd.FilesRoot, path, create, prefix)
+		fi, err := getFileHandle(filesRoot, path, create, prefix)
 		if err != nil {
 			return err
 		}
@@ -1153,7 +1053,8 @@ Examples:
 			return err
 		}
 
-		cfg, err := n.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := n.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -1164,18 +1065,14 @@ Examples:
 			return err
 		}
 
-		// NOTE: User management patcher
-		dirtomake = spfsPath(cfg, req, dirtomake)
-
 		flush, _ := req.Options[filesFlushOptionName].(bool)
 
 		prefix, err := getPrefix(req)
 		if err != nil {
 			return err
 		}
-		root := n.FilesRoot
 
-		err = mfs.Mkdir(root, dirtomake, mfs.MkdirOpts{
+		err = mfs.Mkdir(filesRoot, dirtomake, mfs.MkdirOpts{
 			Mkparents:  dashp,
 			Flush:      flush,
 			CidBuilder: prefix,
@@ -1209,7 +1106,8 @@ are run with the '--flush=false'.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -1224,10 +1122,7 @@ are run with the '--flush=false'.
 			path = req.Arguments[0]
 		}
 
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
-
-		n, err := mfs.FlushPath(req.Context, nd.FilesRoot, path)
+		n, err := mfs.FlushPath(req.Context, filesRoot, path)
 		if err != nil {
 			return err
 		}
@@ -1258,7 +1153,8 @@ Change the CID version or hash function of the root node of a given path.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -1268,9 +1164,6 @@ Change the CID version or hash function of the root node of a given path.
 			path = req.Arguments[0]
 		}
 
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
-
 		flush, _ := req.Options[filesFlushOptionName].(bool)
 
 		prefix, err := getPrefix(req)
@@ -1278,9 +1171,9 @@ Change the CID version or hash function of the root node of a given path.
 			return err
 		}
 
-		err = updatePath(nd.FilesRoot, path, prefix)
+		err = updatePath(filesRoot, path, prefix)
 		if err == nil && flush {
-			_, err = mfs.FlushPath(req.Context, nd.FilesRoot, path)
+			_, err = mfs.FlushPath(req.Context, filesRoot, path)
 		}
 		return err
 	},
@@ -1335,10 +1228,12 @@ Remove files or directories.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
+
 		// if '--force' specified, it will remove anything else,
 		// including file, directory, corrupted node, etc
 		force, _ := req.Options[forceOptionName].(bool)
@@ -1351,10 +1246,7 @@ Remove files or directories.
 				continue
 			}
 
-			// NOTE: User management patcher
-			path = spfsPath(cfg, req, path)
-
-			if err := removePath(nd.FilesRoot, path, force, dashr); err != nil {
+			if err := removePath(filesRoot, path, force, dashr); err != nil {
 				errs = append(errs, fmt.Errorf("%s: %w", path, err))
 			}
 		}
@@ -1604,7 +1496,8 @@ The mode argument must be specified in Unix numeric notation.
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -1614,15 +1507,12 @@ The mode argument must be specified in Unix numeric notation.
 			return err
 		}
 
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
-
 		mode, err := strconv.ParseInt(req.Arguments[0], 8, 32)
 		if err != nil {
 			return err
 		}
 
-		return mfs.Chmod(nd.FilesRoot, path, os.FileMode(mode))
+		return mfs.Chmod(filesRoot, path, os.FileMode(mode))
 	},
 }
 
@@ -1652,7 +1542,8 @@ Examples:
 			return err
 		}
 
-		cfg, err := nd.Repo.Config()
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := nd.GetMFSRoot(userId)
 		if err != nil {
 			return err
 		}
@@ -1661,9 +1552,6 @@ Examples:
 		if err != nil {
 			return err
 		}
-
-		// NOTE: User management patcher
-		path = spfsPath(cfg, req, path)
 
 		mtime, _ := req.Options[mtimeOptionName].(int64)
 		nsecs, _ := req.Options[mtimeNsecsOptionName].(uint)
@@ -1675,6 +1563,6 @@ Examples:
 			ts = time.Now().UTC()
 		}
 
-		return mfs.Touch(nd.FilesRoot, path, ts)
+		return mfs.Touch(filesRoot, path, ts)
 	},
 }

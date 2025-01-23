@@ -2,16 +2,15 @@ package conn
 
 import (
 	"context"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
+var _ Connector = (*rc)(nil)
+
 type rc struct {
 	rdb *redis.ClusterClient
 }
-
-var rcTimeout = 5 * time.Second // default timeout
 
 func NewRc(opts *redis.ClusterOptions) (*rc, error) {
 	rdb := redis.NewClusterClient(opts)
@@ -22,17 +21,25 @@ func NewRc(opts *redis.ClusterOptions) (*rc, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &rc{
+	r := &rc{
 		rdb: rdb,
-	}, nil
+	}
+	return r, nil
 }
 
-func (rc *rc) Key() any {
-	return "local:filesroot"
+func (conn *rc) Namespace() string {
+	return "mfs:local:filesroot"
 }
 
-func (r *rc) Get(ctx context.Context, key any) ([]byte, error) {
-	value, err := r.rdb.Get(ctx, key.(string)).Result()
+func (conn *rc) CreateKey(key string) string {
+	if key == "" {
+		return conn.Namespace()
+	}
+	return conn.Namespace() + ":" + key
+}
+
+func (conn *rc) Get(ctx context.Context, key string) ([]byte, error) {
+	value, err := conn.rdb.Get(ctx, conn.CreateKey(key)).Result()
 	switch {
 	case err != nil:
 		return nil, err
@@ -42,14 +49,14 @@ func (r *rc) Get(ctx context.Context, key any) ([]byte, error) {
 	return []byte(value), nil
 }
 
-func (r *rc) Put(ctx context.Context, key any, value []byte) error {
-	_, err := r.rdb.Set(ctx, key.(string), value, 0).Result()
+func (conn *rc) Put(ctx context.Context, key string, value []byte) error {
+	_, err := conn.rdb.Set(ctx, conn.CreateKey(key), value, 0).Result()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *rc) Sync(ctx context.Context, prefix any) error {
+func (r *rc) Sync(ctx context.Context, prefix string) error {
 	return nil
 }

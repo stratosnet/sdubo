@@ -2,13 +2,24 @@ package conn
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
 
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	randomString := ""
+	for i := 0; i < length; i++ {
+		randomString += string(charset[rand.Intn(len(charset))])
+	}
+	return randomString
+}
+
 func TestRC_SimplePutAndGet(t *testing.T) {
-	opts, err := parseRedisClusterDSN("redis://127.0.0.1:6379")
+	opts, err := redis.ParseClusterURL("redis://127.0.0.1:6379")
 	if err != nil {
 		panic(err)
 	}

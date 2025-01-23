@@ -200,6 +200,7 @@ See 'dag export' and 'dag import' for more information.
 		cmds.UintOption(modeOptionName, "Custom POSIX file mode to store in created UnixFS entries. Disables raw-leaves. (experimental)"),
 		cmds.Int64Option(mtimeOptionName, "Custom POSIX modification time to store in created UnixFS entries (seconds before or after the Unix Epoch). Disables raw-leaves. (experimental)"),
 		cmds.UintOption(mtimeNsecsOptionName, "Custom POSIX modification time (optional time fraction in nanoseconds)"),
+		spfsUserIdOption,
 		spfsPrivKeyOption,
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
@@ -355,6 +356,13 @@ See 'dag export' and 'dag import' for more information.
 		if err != nil {
 			return err
 		}
+
+		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
+		filesRoot, err := ipfsNode.GetMFSRoot(userId)
+		if err != nil {
+			return err
+		}
+
 		var added int
 		var fileAddedToMFS bool
 		addit := toadd.Entries()
@@ -387,7 +395,7 @@ See 'dag export' and 'dag import' for more information.
 					dstAsDir := toFilesDst[len(toFilesDst)-1] == '/'
 
 					if dstAsDir {
-						mfsNode, err := mfs.Lookup(ipfsNode.FilesRoot, toFilesDst)
+						mfsNode, err := mfs.Lookup(filesRoot, toFilesDst)
 						// confirm dst exists
 						if err != nil {
 							errCh <- fmt.Errorf("%s: MFS destination directory %q does not exist: %w", toFilesOptionName, toFilesDst, err)
@@ -408,7 +416,7 @@ See 'dag export' and 'dag import' for more information.
 						return
 					}
 
-					_, err = mfs.Lookup(ipfsNode.FilesRoot, gopath.Dir(toFilesDst))
+					_, err = mfs.Lookup(filesRoot, gopath.Dir(toFilesDst))
 					if err != nil {
 						errCh <- fmt.Errorf("%s: MFS destination parent %q %q does not exist: %w", toFilesOptionName, toFilesDst, gopath.Dir(toFilesDst), err)
 						return
@@ -420,7 +428,7 @@ See 'dag export' and 'dag import' for more information.
 						errCh <- err
 						return
 					}
-					err = mfs.PutNode(ipfsNode.FilesRoot, toFilesDst, nodeAdded)
+					err = mfs.PutNode(filesRoot, toFilesDst, nodeAdded)
 					if err != nil {
 						errCh <- fmt.Errorf("%s: cannot put node in path %q: %w", toFilesOptionName, toFilesDst, err)
 						return

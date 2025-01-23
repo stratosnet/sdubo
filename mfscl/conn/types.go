@@ -5,8 +5,9 @@ import (
 )
 
 type Connector interface {
-	Key() any
-	Get(ctx context.Context, key any) ([]byte, error)
-	Put(ctx context.Context, key any, value []byte) error
-	Sync(ctx context.Context, prefix any) error
+	Namespace() string
+	CreateKey(key string) string
+	Get(ctx context.Context, key string) ([]byte, error)
+	Put(ctx context.Context, key string, value []byte) error
+	Sync(ctx context.Context, prefix string) error
 }

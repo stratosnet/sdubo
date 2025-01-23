@@ -64,7 +64,11 @@ type ipfsPinMFSNode struct {
 }
 
 func (x *ipfsPinMFSNode) RootNode() (ipld.Node, error) {
-	return x.node.FilesRoot.GetDirectory().GetNode()
+	filesRoot, err := x.node.GetMFSRoot("")
+	if err != nil {
+		return nil, err
+	}
+	return filesRoot.GetDirectory().GetNode()
 }
 
 func (x *ipfsPinMFSNode) Identity() peer.ID {
