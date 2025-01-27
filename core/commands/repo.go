@@ -84,8 +84,8 @@ order to reclaim hard disk space.
 		silent, _ := req.Options[repoSilentOptionName].(bool)
 		streamErrors, _ := req.Options[repoStreamErrorsOptionName].(bool)
 
-		userId, _ := req.Options[sds.OptionSpfsUserId].(string)
-		gcOutChan := corerepo.GarbageCollectAsync(n, req.Context, userId)
+		ns, _ := req.Options[sds.OptionSpfsUserId].(string)
+		gcOutChan := corerepo.GarbageCollectAsync(n, req.Context, ns)
 
 		if streamErrors {
 			errs := false

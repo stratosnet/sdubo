@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ipfs/boxo/blockservice"
 	blockstore "github.com/ipfs/boxo/blockstore"
@@ -267,11 +266,10 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 		}
 	}
 
-	var getRoot mfscl.GetRoot = func(ns string) (*mfs.Root, error) {
-		ctx, cancel := context.WithTimeout(mctx, time.Duration(10*time.Second))
-		defer cancel()
+	ctx := helpers.LifecycleCtx(mctx, lc)
 
-		pf := func(ctx context.Context, c cid.Cid) error {
+	var getRoot mfscl.GetRoot = func(ns string) (*mfs.Root, error) {
+		pf := func(parent context.Context, c cid.Cid) error {
 			rootDS := repo.Datastore()
 			if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
 				return err
@@ -290,9 +288,7 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 			return nil, err
 		}
 
-		root, err := mfs.NewRoot(ctx, dag, nd, pf)
-
-		return root, err
+		return mfs.NewRoot(ctx, dag, nd, pf)
 	}
 
 	return getRoot
