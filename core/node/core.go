@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ipfs/boxo/blockservice"
 	blockstore "github.com/ipfs/boxo/blockstore"
@@ -149,7 +150,7 @@ func Dag(bs blockservice.BlockService) format.DAGService {
 }
 
 // MFSCluster creates mfs cluster conn
-func MFSCluster(repo repo.Repo, cfg *config.Config) *mfscl.MFSCluster {
+func MFSCluster(repo repo.Repo, cfg *config.Config) (*mfscl.MFSCluster, error) {
 	var (
 		connector mfsconn.Connector
 		err       error
@@ -160,11 +161,11 @@ func MFSCluster(repo repo.Repo, cfg *config.Config) *mfscl.MFSCluster {
 	} else {
 		connector, err = mfsconn.Parse(cfg.MfsConn.DSN)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 	mfsClust.Provide(connector)
-	return mfsClust
+	return mfsClust, nil
 }
 
 // Files loads persisted MFS root
@@ -267,7 +268,8 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 	}
 
 	var getRoot mfscl.GetRoot = func(ns string) (*mfs.Root, error) {
-		ctx := helpers.LifecycleCtx(mctx, lc)
+		ctx, cancel := context.WithTimeout(mctx, time.Duration(10*time.Second))
+		defer cancel()
 
 		pf := func(ctx context.Context, c cid.Cid) error {
 			rootDS := repo.Datastore()
