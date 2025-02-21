@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/boxo/path"
 	cid "github.com/ipfs/go-cid"
 	options "github.com/ipfs/kubo/core/coreiface/options"
+	"github.com/ipfs/kubo/misc/sutil"
 	"github.com/ipfs/kubo/sds"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 )
@@ -27,12 +28,15 @@ func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts 
 		return nil, err
 	}
 
-	go api.sdsFetcher.CreateShareLink(settings.PrivKey, fileHash, cid.String())
-
 	f, ok := mapFile.(files.File)
 	if !ok {
 		return nil, fmt.Errorf("not a file")
 	}
+
+	if !settings.OnlyHash {
+		go api.sdsFetcher.CreateShareLink(settings.PrivKey, fileHash, cid.String())
+	}
+
 	return f, nil
 }
 
@@ -46,6 +50,11 @@ func (api *SdsAPI) Upload(ctx context.Context, file_ files.File, opts ...options
 	fileData, err := io.ReadAll(file_)
 	if err != nil {
 		return "", err
+	}
+
+	if settings.OnlyHash {
+		fileHash := sutil.CreateFileHash(fileData)
+		return fileHash, nil
 	}
 
 	return api.sdsFetcher.Upload(settings.PrivKey, fileData)

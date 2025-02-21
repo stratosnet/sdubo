@@ -316,7 +316,6 @@ See 'dag export' and 'dag import' for more information.
 
 			options.Unixfs.Chunker(chunker),
 
-			options.Unixfs.Pin(dopin),
 			options.Unixfs.HashOnly(onlyHash),
 			options.Unixfs.FsCache(fscache),
 			options.Unixfs.Nocopy(nocopy),
@@ -326,6 +325,10 @@ See 'dag export' and 'dag import' for more information.
 
 			options.Unixfs.PreserveMode(preserveMode),
 			options.Unixfs.PreserveMtime(preserveMtime),
+		}
+
+		if !cfg.Sds.Enabled {
+			opts = append(opts, options.Unixfs.Pin(dopin))
 		}
 
 		if mode != 0 {
@@ -438,16 +441,6 @@ See 'dag export' and 'dag import' for more information.
 				errCh <- err
 			}()
 
-			// NOTE: For redundant events, mostly sds usage
-			skipEvents := make(chan interface{}, adderOutChanSize)
-			defer close(skipEvents)
-
-			go func() {
-				// NOTE: As it has capacity, let's also iterate this chan
-				for range skipEvents {
-				}
-			}()
-
 			for event := range events {
 				output, ok := event.(*coreiface.AddEvent)
 				if !ok {
@@ -471,38 +464,14 @@ See 'dag export' and 'dag import' for more information.
 					output.MtimeNsecs = addit.Node().ModTime().Nanosecond()
 				}
 
-				// TODO: Hande h var
-
 				if cfg.Sds.Enabled && (output.Path != path.ImmutablePath{}) {
-					f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(output.Path.RootCid())
+					cid_ := output.Path.RootCid()
+					p, err := addSdsCar(req, cfg, api, cid_, dopin, onlyHash)
 					if err != nil {
 						return err
 					}
 
-					sOpts := []options.SdsOption{}
-					privKey, _ := req.Options[sds.OptionSpfsPrivKey].(string)
-					if privKey != "" {
-						sOpts = append(sOpts, options.Sds.PrivKey(privKey))
-					}
-
-					sdsFileHash, err := api.Sds().Upload(req.Context, f, sOpts...)
-					if err != nil {
-						return err
-					}
-
-					mapFile, err := api.Sds().Link(req.Context, output.Path.RootCid(), sdsFileHash, sOpts...)
-					if err != nil {
-						return err
-					}
-
-					opts[len(opts)-1] = options.Unixfs.Events(skipEvents)
-
-					sPath, err := api.Unixfs().Add(req.Context, mapFile, opts...)
-					if err != nil {
-						return err
-					}
-
-					h = enc.Encode(sPath.RootCid())
+					h = enc.Encode(p.RootCid())
 				}
 
 				addEvent := AddEvent{

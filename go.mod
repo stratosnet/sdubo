@@ -74,9 +74,9 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/prometheus/client_golang v1.20.5
 	github.com/redis/go-redis/v9 v9.7.0
-	github.com/stratosnet/sds v0.12.4
-	github.com/stratosnet/sds/framework v0.0.0-20241024172020-1c91ede1d55d
-	github.com/stratosnet/sds/sds-msg v0.0.0-20241024172020-1c91ede1d55d
+	github.com/stratosnet/sds v0.12.5
+	github.com/stratosnet/sds/framework v0.0.0-20241128173650-053ecefad7f6
+	github.com/stratosnet/sds/sds-msg v0.0.0-20241128173650-053ecefad7f6
 	github.com/stretchr/testify v1.9.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d
 	github.com/tidwall/gjson v1.16.0
@@ -268,7 +268,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/stratosnet/sds/tx-client v0.0.0-20241024172020-1c91ede1d55d // indirect
+	github.com/stratosnet/sds/tx-client v0.0.0-20241128173650-053ecefad7f6 // indirect
 	github.com/stratosnet/stratos-chain/api v0.0.0-20240509211914-ee516857645d // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

@@ -211,11 +211,17 @@ only for backward compatibility when a legacy CIDv0 is required (--format=v0).
 				return errors.New("expected a file")
 			}
 
-			p, err := api.Block().Put(req.Context, file,
+			opts := []options.BlockPutOption{
 				options.Block.Hash(mhtval, mhlen),
 				options.Block.CidCodec(cidCodec),
 				options.Block.Format(format),
-				options.Block.Pin(pin))
+			}
+
+			if !cfg.Sds.Enabled {
+				opts = append(opts, options.Block.Pin(pin))
+			}
+
+			p, err := api.Block().Put(req.Context, file, opts...)
 			if err != nil {
 				return err
 			}
@@ -224,8 +230,19 @@ only for backward compatibility when a legacy CIDv0 is required (--format=v0).
 				return err
 			}
 
+			key := p.Path().RootCid().String()
+
+			if cfg.Sds.Enabled {
+				p, err := addSdsCar(req, cfg, api, p.Path().RootCid(), pin, false)
+				if err != nil {
+					return err
+				}
+
+				key = p.RootCid().String()
+			}
+
 			err = res.Emit(&BlockStat{
-				Key:  p.Path().RootCid().String(),
+				Key:  key,
 				Size: p.Size(),
 			})
 			if err != nil {

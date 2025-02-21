@@ -154,7 +154,7 @@ func cat(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.C
 			return nil, 0, err
 		}
 
-		f, err := getCarOrResolve(nd, cfg, ctx, api, p, opts...)
+		f, err := getSdsCarOrResolve(nd, cfg, ctx, api, p, opts...)
 		if err != nil {
 			return nil, 0, err
 		}

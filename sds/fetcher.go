@@ -269,7 +269,7 @@ func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
 
 	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
 		res, err := f.rpc.GetShared(wallet, sequenceNumber, parsedLink)
-		fmt.Println("Fetcher Download DownloadFromShare res - err", res, err)
+		fmt.Println("Fetcher Download DownloadFromShare res - err", err)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +286,7 @@ func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
 
 	fn := func() error {
 		res, err := f.rpc.RequestShare(wallet, fileHash, &cid)
-		fmt.Println("Fetcher CreateShareLink RequestShare res - err", res, err)
+		fmt.Println("Fetcher CreateShareLink RequestShare res - err", err)
 		if err != nil {
 			return err
 		}
