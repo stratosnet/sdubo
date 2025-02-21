@@ -97,7 +97,7 @@ may also specify the level of compression by specifying '-l=<1-9>'.
 			sOpts = append(sOpts, options.Sds.PrivKey(privKey))
 		}
 
-		file, err := getCarOrResolve(nd, cfg, ctx, api, p, sOpts...)
+		file, err := getSdsCarOrResolve(nd, cfg, ctx, api, p, sOpts...)
 		if err != nil {
 			return err
 		}

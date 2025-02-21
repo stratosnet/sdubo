@@ -75,7 +75,35 @@ func readAndResetGatewayResponse(n *gateway.GetResponse) ([]byte, error) {
 	return fileData, nil
 }
 
-// TODO: Fix panic on folder
+func (sb *SdsBlocksBackend) getFromShareLink(path_ path.ImmutablePath) ([]byte, error) {
+	c, err := cid.Parse(path_.Segments()[1])
+	if err != nil {
+		return nil, err
+	}
+
+	// only for protodag, blocks working as usual as they are always v1
+	if c.Version() == 1 && c.Type() == cid.DagProtobuf {
+		npath_, err := sutil.ExtendPath(path.FromCid(cid.NewCidV0(c.Hash())), path_)
+		if err != nil {
+			return nil, err
+		}
+
+		path_, err = path.NewImmutablePath(npath_)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO: Maybe to get from ipfs also first?
+	shareLink := fwtypes.SetShareLink(path_.Segments()[1], "")
+
+	// no care of error
+	// TODO: Add pk from sg
+	fileData, err := sb.fetcher.DownloadFromShare("", shareLink.String())
+
+	return fileData, err
+}
+
 // Logic
 //
 // 1. Get from ipfs by cid
@@ -84,13 +112,12 @@ func readAndResetGatewayResponse(n *gateway.GetResponse) ([]byte, error) {
 // 4. If ok, load node
 func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, ranges ...gateway.ByteRange) (gateway.ContentPathMetadata, *gateway.GetResponse, error) {
 	var (
-		doPinRoots = false
-		fileData   []byte
-		errS       error
+		fileData []byte
+		errS     error
 	)
 
-	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(SpfsGatewayBlockTimeout)*time.Second)
-	defer cancelFn()
+	ctx2, _ := context.WithTimeout(ctx, time.Duration(SpfsGatewayBlockTimeout)*time.Second)
+	// defer cancelFn()
 
 	// NOTE: Check first if file exists in ipfs
 	md, n, err := sb.b.Get(ctx2, path_, ranges...)
@@ -103,35 +130,10 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			return md, n, err
 		}
 
-		c, errS := cid.Parse(path_.Segments()[1])
-		if errS != nil {
-			return md, n, err
+		fileData, err = sb.getFromShareLink(path_)
+		if err != nil {
+			return gateway.ContentPathMetadata{}, nil, err
 		}
-
-		if c.Type() != cid.DagProtobuf {
-			return md, n, err
-		}
-
-		if c.Version() == 1 {
-			npath_, errS := sutil.ExtendPath(path.FromCid(cid.NewCidV0(c.Hash())), path_)
-			if errS != nil {
-				return gateway.ContentPathMetadata{}, nil, errS
-			}
-
-			path_, errS = path.NewImmutablePath(npath_)
-			if errS != nil {
-				return gateway.ContentPathMetadata{}, nil, errS
-			}
-		}
-
-		// TODO: Maybe to get from ipfs also first?
-		shareLink := fwtypes.SetShareLink(path_.Segments()[1], "")
-
-		// no care of error
-		// TODO: Add pk from sg
-		fileData, _ = sb.fetcher.DownloadFromShare("", shareLink.String())
-		// in this case we should pin to store into local block tree
-		doPinRoots = true
 	} else if sb.cfg.Enabled {
 		// in case file found on ipfs, check if it is a mapping file and get original car file
 		// getting file data from gateway
@@ -143,18 +145,22 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}
-				path_, errS = path.NewImmutablePath(oPath)
+				npath_, errS := path.NewImmutablePath(oPath)
 				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}
-				md, n, err = sb.b.Get(ctx, path_, ranges...)
+				md, n, err = sb.b.Get(ctx2, npath_, ranges...)
 				if err != nil {
-					return md, n, err
-				}
-				// update gateway content
-				fileData, errS = readAndResetGatewayResponse(n)
-				if errS != nil {
-					return md, n, nil
+					fileData, err = sb.getFromShareLink(path_)
+					if err != nil {
+						return gateway.ContentPathMetadata{}, nil, err
+					}
+				} else {
+					// update gateway content
+					fileData, errS = readAndResetGatewayResponse(n)
+					if errS != nil {
+						return md, n, nil
+					}
 				}
 			}
 		}
@@ -164,7 +170,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 	if isCar {
 		dp := NewDagParser(ctx, sb.dag, sb.bs, sb.pin)
 		// TODO: Add a way to import only if it is not exists
-		sdsP, errS := dp.Import(files.NewBytesFile(fileData), doPinRoots)
+		sdsP, errS := dp.Import(files.NewBytesFile(fileData), false)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
@@ -180,7 +186,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		}
 
 		// TODO: Add a way to import only if it is not exists
-		if _, err = dp.ImportSdsDagLink(cid_, files.NewBytesFile(fileData)); err != nil {
+		if _, err = dp.ImportSdsDagLink(cid_, files.NewBytesFile(fileData), false); err != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 

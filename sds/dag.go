@@ -8,8 +8,6 @@ import (
 
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/files"
-	merkledag "github.com/ipfs/boxo/ipld/merkledag"
-	unixfs "github.com/ipfs/boxo/ipld/unixfs"
 	"github.com/ipfs/boxo/path"
 	pin "github.com/ipfs/boxo/pinning/pinner"
 	blocks "github.com/ipfs/go-block-format"
@@ -183,7 +181,7 @@ func (dp *DagParser) ExportWithStore(store gocar.ReadStore, rootCid cid.Cid) (fi
 	return files.NewBytesFile(b.Bytes()), nil
 }
 
-func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node) (path.Path, error) {
+func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node, doPinRoots bool) (path.Path, error) {
 	fs, ok := f.(io.ReadSeeker)
 	if !ok {
 		return nil, fmt.Errorf("not a seeker")
@@ -198,27 +196,19 @@ func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node) (path.Path, er
 	}
 	fileHash := sutil.CreateFileHash(fileData)
 
-	mFile, err := NewSdsFile(cid_, fileHash)
+	blk, err := NewSdsMerkleDag(cid_, fileHash)
 	if err != nil {
 		return nil, err
 	}
-
-	mData, err := io.ReadAll(mFile.(files.File))
-	if err != nil {
-		return nil, err
-	}
-
-	pb := merkledag.NodeWithData(unixfs.FilePBData(mData, uint64(len(mData))))
-	blk := blocks.NewBlock(pb.RawData())
 
 	vbs := NewVirtualBlockStore(blk)
 
-	eMFile, err := dp.ExportWithStore(vbs, pb.Cid())
+	eMFile, err := dp.ExportWithStore(vbs, blk.Cid())
 	if err != nil {
 		return nil, err
 	}
 
-	return dp.Import(eMFile, true)
+	return dp.Import(eMFile, doPinRoots)
 }
 
 type VirtualBlockStore struct {
