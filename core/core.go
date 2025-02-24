@@ -89,10 +89,13 @@ type IpfsNode struct {
 	OfflineUnixFSFetcherFactory fetcher.Factory           `name:"offlineUnixfsFetcher"` // fetcher that interprets UnixFS data without fetching new blocks
 	Reporter                    *metrics.BandwidthCounter `optional:"true"`
 	Discovery                   mdns.Service              `optional:"true"`
-	FilesRoot                   *mfs.Root
-	RecordValidator             record.Validator
-	GetNamespaceFilesRoot       mfscl.GetRoot
-	MFSCluster                  *mfscl.MFSCluster
+
+	// DEPRECATED
+	// FilesRoot                   *mfs.Root
+
+	RecordValidator       record.Validator
+	GetNamespaceFilesRoot mfscl.GetRoot
+	MFSCluster            *mfscl.MFSCluster
 
 	// Online
 	PeerHost                  p2phost.Host               `optional:"true"` // the network host (server+client)
@@ -247,13 +250,9 @@ func (n *IpfsNode) GetMFSRoot(ns string) (*mfs.Root, error) {
 		root *mfs.Root
 		err  error
 	)
-	if ns != "" {
-		root, err = n.GetNamespaceFilesRoot(ns)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		root = n.FilesRoot
+	root, err = n.GetNamespaceFilesRoot(ns)
+	if err != nil {
+		return nil, err
 	}
 	return root, nil
 }

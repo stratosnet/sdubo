@@ -20,6 +20,14 @@ func (cl *MFSCluster) Provide(connector conn.Connector) {
 	cl.connector = connector
 }
 
+func (cl *MFSCluster) CreateKey(keys ...string) string {
+	return cl.connector.CreateKey(keys...)
+}
+
+func (cl *MFSCluster) Rm(ctx context.Context, key string) error {
+	return cl.connector.Rm(ctx, key)
+}
+
 func (cl *MFSCluster) Get(ctx context.Context, key string) ([]byte, error) {
 	return cl.connector.Get(ctx, key)
 }

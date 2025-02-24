@@ -233,12 +233,19 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 
 // NamespaceFiles loads persisted MFS root for custom namespace
 func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster) mfscl.GetRoot {
+	// offineDag := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
+	// mfsclDag := mfscl.NewMFSClDagService(mfscluster)
+
 	getNode := func(ctx context.Context, ns string) (*merkledag.ProtoNode, error) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		val, err := mfscluster.Get(ctx, ns)
 
 		switch {
 		case err == datastore.ErrNotFound || val == nil:
 			nd := unixfs.EmptyDirNode()
+			// err := mfsclDag.Add(ctx, nd)
 			err := dag.Add(ctx, nd)
 			if err != nil {
 				return nil, fmt.Errorf("failure writing filesroot to dagstore: %s", err)
@@ -250,10 +257,10 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 				return nil, err
 			}
 
-			// NOTE: Potential problems on start if we are not using offline exchange?
+			// rnd, err := mfsclDag.Get(ctx, c)
 			rnd, err := dag.Get(ctx, c)
 			if err != nil {
-				return nil, fmt.Errorf("error loading filesroot from dagservice: %s", err)
+				return nil, fmt.Errorf("error loading filesroot from mfsdabcluster: %s", err)
 			}
 
 			pbnd, ok := rnd.(*merkledag.ProtoNode)
@@ -288,6 +295,7 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 			return nil, err
 		}
 
+		// return mfs.NewRoot(ctx, mfsclDag, nd, pf)
 		return mfs.NewRoot(ctx, dag, nd, pf)
 	}
 
