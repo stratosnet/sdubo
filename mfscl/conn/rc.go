@@ -2,6 +2,7 @@ package conn
 
 import (
 	"context"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -28,18 +29,29 @@ func NewRc(opts *redis.ClusterOptions) (*rc, error) {
 }
 
 func (conn *rc) Namespace() string {
-	return "mfs:local:filesroot"
+	return conn.CreateKey(
+		"mfs",
+		"local",
+		"filesroot",
+	)
 }
 
-func (conn *rc) CreateKey(key string) string {
+func (conn *rc) ApplyNamespace(key string) string {
 	if key == "" {
 		return conn.Namespace()
 	}
-	return conn.Namespace() + ":" + key
+	return conn.CreateKey(
+		conn.Namespace(),
+		key,
+	)
+}
+
+func (conn *rc) CreateKey(keys ...string) string {
+	return strings.Join(keys, ":")
 }
 
 func (conn *rc) Get(ctx context.Context, key string) ([]byte, error) {
-	value, err := conn.rdb.Get(ctx, conn.CreateKey(key)).Result()
+	value, err := conn.rdb.Get(ctx, conn.ApplyNamespace(key)).Result()
 	switch {
 	case err != nil:
 		return nil, err
@@ -50,7 +62,15 @@ func (conn *rc) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (conn *rc) Put(ctx context.Context, key string, value []byte) error {
-	_, err := conn.rdb.Set(ctx, conn.CreateKey(key), value, 0).Result()
+	_, err := conn.rdb.Set(ctx, conn.ApplyNamespace(key), value, 0).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (conn *rc) Rm(ctx context.Context, key string) error {
+	_, err := conn.rdb.Del(ctx, conn.ApplyNamespace(key)).Result()
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package conn
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/kubo/repo"
@@ -18,18 +19,29 @@ func NewDsWrapper(ds repo.Datastore) *dsWrapper {
 }
 
 func (conn *dsWrapper) Namespace() string {
-	return "/local/filesroot"
+	return conn.CreateKey(
+		"",
+		"local",
+		"filesroot",
+	)
 }
 
-func (conn *dsWrapper) CreateKey(key string) string {
+func (conn *dsWrapper) ApplyNamespace(key string) string {
 	if key == "" {
 		return conn.Namespace()
 	}
-	return conn.Namespace() + "/" + key
+	return conn.CreateKey(
+		conn.Namespace(),
+		key,
+	)
+}
+
+func (conn *dsWrapper) CreateKey(keys ...string) string {
+	return strings.Join(keys, "/")
 }
 
 func (conn *dsWrapper) Get(ctx context.Context, key string) ([]byte, error) {
-	value, err := conn.ds.Get(ctx, datastore.NewKey(conn.CreateKey(key)))
+	value, err := conn.ds.Get(ctx, datastore.NewKey(conn.ApplyNamespace(key)))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +49,15 @@ func (conn *dsWrapper) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (conn *dsWrapper) Put(ctx context.Context, key string, value []byte) error {
-	err := conn.ds.Put(ctx, datastore.NewKey(conn.CreateKey(key)), value)
+	err := conn.ds.Put(ctx, datastore.NewKey(conn.ApplyNamespace(key)), value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (conn *dsWrapper) Rm(ctx context.Context, key string) error {
+	err := conn.ds.Delete(ctx, datastore.NewKey(conn.ApplyNamespace(key)))
 	if err != nil {
 		return err
 	}
@@ -45,5 +65,5 @@ func (conn *dsWrapper) Put(ctx context.Context, key string, value []byte) error 
 }
 
 func (conn *dsWrapper) Sync(ctx context.Context, prefix string) error {
-	return conn.ds.Sync(ctx, datastore.NewKey(conn.CreateKey(prefix)))
+	return conn.ds.Sync(ctx, datastore.NewKey(conn.ApplyNamespace(prefix)))
 }

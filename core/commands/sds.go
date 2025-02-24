@@ -26,6 +26,7 @@ var (
 	spfsPrivKeyOption = cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.")
 )
 
+// TODO: Add pin per user, currently always pin
 func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ cid.Cid, pin bool, onlyHash bool) (path.ImmutablePath, error) {
 	// TODO: Is it still maybe possible?
 	if onlyHash {
@@ -79,7 +80,7 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 
 			options.Unixfs.Chunker(chunker),
 
-			options.Unixfs.Pin(pin),
+			options.Unixfs.Pin(true),
 			options.Unixfs.HashOnly(onlyHash),
 			options.Unixfs.FsCache(false),
 			options.Unixfs.Nocopy(false),
@@ -115,7 +116,7 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 		options.Block.Hash(mhtval, -1),
 		options.Block.CidCodec("raw"),
 		options.Block.Format(""),
-		options.Block.Pin(pin),
+		options.Block.Pin(true),
 	}
 
 	blockStat, err := api.Block().Put(req.Context, mapFile, opts...)

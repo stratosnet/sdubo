@@ -120,7 +120,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 	// defer cancelFn()
 
 	// NOTE: Check first if file exists in ipfs
-	md, n, err := sb.b.Get(ctx2, path_, ranges...)
+	md, n, err := sb.b.Get(ctx2, path_)
 
 	// Not exist, trying to get from sds
 	if err != nil {
@@ -156,11 +156,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 						return gateway.ContentPathMetadata{}, nil, err
 					}
 				} else {
-					// update gateway content
-					fileData, errS = readAndResetGatewayResponse(n)
-					if errS != nil {
-						return md, n, nil
-					}
+					return md, n, err
 				}
 			}
 		}
