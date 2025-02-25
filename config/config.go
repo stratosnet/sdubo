@@ -42,8 +42,8 @@ type Config struct {
 
 	// sds
 	Sds Sds
-	// mfs connection
-	MfsConn MfsConn
+	// new shock module to override default config for different services like dag, mfs etc.
+	Shock Shock
 
 	Internal Internal // experimental/unstable options
 }

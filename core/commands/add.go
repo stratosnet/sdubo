@@ -475,7 +475,7 @@ See 'dag export' and 'dag import' for more information.
 
 				if cfg.Sds.Enabled && (output.Path != path.ImmutablePath{}) {
 					cid_ := output.Path.RootCid()
-					p, err := addSdsCar(req, cfg, api, cid_, dopin, onlyHash)
+					p, err := addSdsCar(req, cfg, api, cid_, ipfsNode, dopin, onlyHash)
 					if err != nil {
 						return err
 					}

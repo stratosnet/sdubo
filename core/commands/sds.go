@@ -27,13 +27,13 @@ var (
 )
 
 // TODO: Add pin per user, currently always pin
-func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ cid.Cid, pin bool, onlyHash bool) (path.ImmutablePath, error) {
+func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ cid.Cid, nd *core.IpfsNode, pin bool, onlyHash bool) (path.ImmutablePath, error) {
 	// TODO: Is it still maybe possible?
 	if onlyHash {
 		return path.ImmutablePath{}, fmt.Errorf("simulate feature disabled")
 	}
 
-	f, err := sds.NewDagParser(req.Context, api.Dag(), nil, nil).Export(cid_)
+	f, err := sds.NewDagParser(req.Context, api.Dag(), nd.Blockstore, nd.Pinning).Export(cid_)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
@@ -62,6 +62,10 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 	if !ok {
 		return path.ImmutablePath{}, fmt.Errorf("unrecognized multihash function: %s", mhtype)
 	}
+
+	var (
+		sPath path.ImmutablePath
+	)
 
 	// for 0 means add api, so we relly on incomming cid_ param to detect behaviour
 	if cid_.Version() == 0 {
@@ -93,47 +97,50 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 			options.Unixfs.CidVersion(0),
 		}
 
-		sPath, err := api.Unixfs().Add(req.Context, mapFile, opts...)
+		sPath, err = api.Unixfs().Add(req.Context, mapFile, opts...)
 		if err != nil {
 			return path.ImmutablePath{}, err
 		}
-		return sPath, nil
-	}
+	} else {
+		opts := []options.BlockPutOption{
+			options.Block.Hash(mhtval, -1),
+			options.Block.CidCodec("raw"),
+			options.Block.Format(""),
+			options.Block.Pin(true),
+		}
 
-	if onlyHash {
-		block, err := sds.NewSdsMerkleDag(cid_, sdsFileHash)
+		blockStat, err := api.Block().Put(req.Context, mapFile, opts...)
 		if err != nil {
 			return path.ImmutablePath{}, err
 		}
 
-		p, _ := path.NewPath("/ipfs/" + block.Cid().String())
-		sPath, _ := path.NewImmutablePath(p)
+		if err := cmdutils.CheckBlockSize(req, uint64(blockStat.Size())); err != nil {
+			return path.ImmutablePath{}, err
+		}
 
-		return sPath, nil
+		sPath = blockStat.Path()
 	}
 
-	opts := []options.BlockPutOption{
-		options.Block.Hash(mhtval, -1),
-		options.Block.CidCodec("raw"),
-		options.Block.Format(""),
-		options.Block.Pin(true),
-	}
+	// // NOTE: linking after to main mfs tree for proper gc
+	// // should be replaced somehow in future
+	// filesRoot, err := nd.GetMFSRoot("")
+	// if err != nil {
+	// 	return path.ImmutablePath{}, err
+	// }
 
-	blockStat, err := api.Block().Put(req.Context, mapFile, opts...)
-	if err != nil {
-		return path.ImmutablePath{}, err
-	}
+	// nodeAdded, err := api.Dag().Get(req.Context, sPath.RootCid())
+	// if err != nil {
+	// 	return path.ImmutablePath{}, err
+	// }
 
-	if err := cmdutils.CheckBlockSize(req, uint64(blockStat.Size())); err != nil {
-		return path.ImmutablePath{}, err
-	}
+	// _ = mfs.PutNode(filesRoot, fmt.Sprintf("/%s", sPath.RootCid()), nodeAdded)
 
-	return blockStat.Path(), nil
+	return sPath, nil
 
 }
 
 func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
-	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
+	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(5)*time.Second)
 	// NOTE: Check first if file exists in ipfs
 	f, err := api.Unixfs().Get(ctxUfs, p)
 	// Not exist, trying to get from sds
@@ -156,14 +163,15 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 			np, err := api.Sds().Parse(ctx, mFile)
 			if err == nil {
 				f, err = api.Unixfs().Get(ctxUfs, np)
-				if err != nil {
-					sf, err := api.Sds().Download(ctx, p, opts...)
-					if err != nil {
-						return nil, err
-					}
-
-					f = sf.(files.Node)
+				if err == nil {
+					return f, nil
 				}
+				sf, err := api.Sds().Download(ctx, p, opts...)
+				if err != nil {
+					return nil, err
+				}
+
+				f = sf.(files.Node)
 			}
 		}
 	}
@@ -171,12 +179,6 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 	isCar, _ := sutil.IsCAR(f)
 	// after fetched car, we need to be sure it is a car, otherwise handle it as ipfs file
 	if isCar {
-		// offline api after to ensure we do not reach out to the network for any reason
-		api, err = api.WithOptions(options.Api.Offline(true))
-		if err != nil {
-			return nil, err
-		}
-
 		// TODO: Add a way to import only if it is not exists
 		dp := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning)
 		sdsP, err := dp.Import(f.(files.File), false)
@@ -194,9 +196,10 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 			return nil, err
 		}
 
-		// TODO: Add a way to import only if it is not exists
-		if _, err = dp.ImportSdsDagLink(cid_, f, false); err != nil {
-			return nil, err
+		if !dp.Exists(cid_) {
+			if _, err = dp.ImportSdsDagLink(cid_, f, true); err != nil {
+				return nil, err
+			}
 		}
 
 		f, err = api.Unixfs().Get(ctx, sdsP)

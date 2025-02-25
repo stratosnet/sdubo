@@ -201,8 +201,6 @@ func (f *Fetcher) download(wallet *SdsWallet, fileHash, storeName string, downlo
 		fileSize uint64 = 0
 	)
 
-	fileData := make([]byte, 0)
-
 	oz, err := f.rpc.GetOzone(wallet)
 	if err != nil {
 		return nil, err
@@ -217,17 +215,27 @@ func (f *Fetcher) download(wallet *SdsWallet, fileHash, storeName string, downlo
 		fileHash = res.FileHash
 	}
 
+	reqId := res.ReqId
+
+	fileData := make([]byte, res.FileSize)
+
 	// Handle result:1 sending the content
 	for res.Return == rpc_api.DOWNLOAD_OK || res.Return == rpc_api.DL_OK_ASK_INFO {
 		if res.Return == rpc_api.DL_OK_ASK_INFO {
-			res, err = f.rpc.DownloadedFileInfo(wallet, res.ReqId, fileHash, fileSize)
+			res, err = f.rpc.DownloadedFileInfo(wallet, reqId, fileHash, fileSize)
 		} else {
 			start := *res.OffsetStart
 			end := *res.OffsetEnd
+
 			fileSize = fileSize + (end - start)
 			decoded, _ := base64.StdEncoding.DecodeString(res.FileData)
-			fileData = append(fileData, decoded...)
-			res, err = f.rpc.DownloadData(wallet, res.ReqId, fileHash)
+
+			if len(decoded) != int(end-start) {
+				return nil, fmt.Errorf("wrong size betwee decoded (%d) and offset (%d)", len(decoded), end-start)
+			}
+			copy(fileData[start:end], decoded)
+
+			res, err = f.rpc.DownloadData(wallet, reqId, fileHash)
 		}
 		if err != nil {
 			return nil, err
@@ -269,7 +277,7 @@ func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
 
 	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
 		res, err := f.rpc.GetShared(wallet, sequenceNumber, parsedLink)
-		fmt.Println("Fetcher Download DownloadFromShare res - err", err)
+		logger.Debugf("Fetcher Download DownloadFromShare res - err: %s", err)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +294,7 @@ func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
 
 	fn := func() error {
 		res, err := f.rpc.RequestShare(wallet, fileHash, &cid)
-		fmt.Println("Fetcher CreateShareLink RequestShare res - err", err)
+		logger.Debugf("Fetcher CreateShareLink RequestShare res - err: %s", err)
 		if err != nil {
 			return err
 		}

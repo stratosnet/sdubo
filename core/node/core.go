@@ -21,13 +21,15 @@ import (
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-unixfsnode"
+	shockds "github.com/ipfs/kubo/shock/datastore"
+	shockmfs "github.com/ipfs/kubo/shock/mfs"
+	shockdag "github.com/ipfs/kubo/shock/spld/merkledag"
 	dagpb "github.com/ipld/go-codec-dagpb"
 	"go.uber.org/fx"
 
+	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/node/helpers"
-	"github.com/ipfs/kubo/mfscl"
-	mfsconn "github.com/ipfs/kubo/mfscl/conn"
 	"github.com/ipfs/kubo/repo"
 )
 
@@ -152,25 +154,6 @@ func Dag(bs blockservice.BlockService) format.DAGService {
 	return merkledag.NewDAGService(bs)
 }
 
-// MFSCluster creates mfs cluster conn
-func MFSCluster(repo repo.Repo, cfg *config.Config) (*mfscl.MFSCluster, error) {
-	var (
-		connector mfsconn.Connector
-		err       error
-	)
-	mfsClust := &mfscl.MFSCluster{}
-	if cfg.MfsConn.DSN == "native" {
-		connector = mfsconn.NewDsWrapper(repo.Datastore())
-	} else {
-		connector, err = mfsconn.Parse(cfg.MfsConn.DSN)
-		if err != nil {
-			return nil, err
-		}
-	}
-	mfsClust.Provide(connector)
-	return mfsClust, nil
-}
-
 // Files loads persisted MFS root
 // Deprecated: this code will not be used in this project anymore as we could handle more flexible with mfscluster
 // but we should keep it for future marks and updates for git merge
@@ -235,22 +218,43 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 	return root, err
 }
 
+func getMFSDatastore(cfg *config.Config, repo repo.Repo) (ds.Datastore, error) {
+	if cfg.Shock.MFS != nil {
+		shockDS, err := shockds.Parse(cfg.Shock.MFS.DSN)
+		if err != nil {
+			return nil, err
+		}
+		return shockDS, nil
+	} else {
+		return repo.Datastore(), nil
+	}
+}
+
 // NamespaceFiles loads persisted MFS root for custom namespace
-func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore, mfscluster *mfscl.MFSCluster) mfscl.GetRoot {
-	// offineDag := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
-	// mfsclDag := mfscl.NewMFSClDagService(mfscluster)
+func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore) (shockmfs.GetRoot, error) {
+	mfsDS, err := getMFSDatastore(cfg, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	dsk := datastore.NewKey("/local/filesroot")
+	offineDag := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
+	dsDag := shockdag.NewDsDagService(mfsDS, func(c cid.Cid) ds.Key {
+		return shockds.JoinKeys(dsk, ds.NewKey(fmt.Sprintf("blocks/%s", c.String())))
+	})
 
 	getNode := func(ctx context.Context, ns string) (*merkledag.ProtoNode, error) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		val, err := mfscluster.Get(ctx, ns)
+		mfsDsk := shockds.JoinKeys(dsk, ds.NewKey(ns))
+
+		val, err := mfsDS.Get(ctx, mfsDsk)
 
 		switch {
 		case err == datastore.ErrNotFound || val == nil:
 			nd := unixfs.EmptyDirNode()
-			// err := mfsclDag.Add(ctx, nd)
-			err := dag.Add(ctx, nd)
+			err := dsDag.Add(ctx, nd)
 			if err != nil {
 				return nil, fmt.Errorf("failure writing filesroot to dagstore: %s", err)
 			}
@@ -261,10 +265,13 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 				return nil, err
 			}
 
-			// rnd, err := mfsclDag.Get(ctx, c)
-			rnd, err := dag.Get(ctx, c)
+			// legacy support
+			rnd, err := offineDag.Get(ctx, c)
 			if err != nil {
-				return nil, fmt.Errorf("error loading filesroot from mfsdabcluster: %s", err)
+				rnd, err = dsDag.Get(ctx, c)
+				if err != nil {
+					return nil, fmt.Errorf("error loading filesroot from shock dag: %s", err)
+				}
 			}
 
 			pbnd, ok := rnd.(*merkledag.ProtoNode)
@@ -279,7 +286,9 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	var getRoot mfscl.GetRoot = func(ns string) (*mfs.Root, error) {
+	var getRoot shockmfs.GetRoot = func(ns string) (*mfs.Root, error) {
+		mfsDsk := shockds.JoinKeys(dsk, ds.NewKey(ns))
+
 		pf := func(parent context.Context, c cid.Cid) error {
 			rootDS := repo.Datastore()
 			if err := rootDS.Sync(ctx, blockstore.BlockPrefix); err != nil {
@@ -288,10 +297,10 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 			if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
 				return err
 			}
-			if err := mfscluster.Put(ctx, ns, c.Bytes()); err != nil {
+			if err := mfsDS.Put(ctx, mfsDsk, c.Bytes()); err != nil {
 				return err
 			}
-			return mfscluster.Sync(ctx, ns)
+			return mfsDS.Sync(ctx, mfsDsk)
 		}
 
 		nd, err := getNode(ctx, ns)
@@ -299,9 +308,8 @@ func NamespaceFiles(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, da
 			return nil, err
 		}
 
-		// return mfs.NewRoot(ctx, mfsclDag, nd, pf)
-		return mfs.NewRoot(ctx, dag, nd, pf)
+		return mfs.NewRoot(ctx, dsDag, nd, pf)
 	}
 
-	return getRoot
+	return getRoot, nil
 }

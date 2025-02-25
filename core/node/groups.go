@@ -378,7 +378,6 @@ var Core = fx.Options(
 	fx.Provide(FetcherConfig),
 	fx.Provide(PathResolverConfig),
 	fx.Provide(Pinning),
-	fx.Provide(MFSCluster),
 	// fx.Provide(Files),
 	fx.Provide(NamespaceFiles),
 )

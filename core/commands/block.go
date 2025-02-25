@@ -233,7 +233,12 @@ only for backward compatibility when a legacy CIDv0 is required (--format=v0).
 			key := p.Path().RootCid().String()
 
 			if cfg.Sds.Enabled {
-				p, err := addSdsCar(req, cfg, api, p.Path().RootCid(), pin, false)
+				nd, err := cmdenv.GetNode(env)
+				if err != nil {
+					return err
+				}
+
+				p, err := addSdsCar(req, cfg, api, p.Path().RootCid(), nd, pin, false)
 				if err != nil {
 					return err
 				}
