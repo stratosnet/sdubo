@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
+	"github.com/ipfs/boxo/exchange/offline"
 	"github.com/ipfs/boxo/files"
+	merkledag "github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/boxo/path"
 	pin "github.com/ipfs/boxo/pinning/pinner"
 	blocks "github.com/ipfs/go-block-format"
@@ -17,6 +20,7 @@ import (
 	"github.com/ipfs/kubo/misc/sutil"
 	gocar "github.com/ipld/go-car"
 	gocarv2 "github.com/ipld/go-car/v2"
+	_ "github.com/ipld/go-ipld-prime/codec/raw"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 )
 
@@ -40,14 +44,21 @@ type DagParser struct {
 func NewDagParser(ctx context.Context, dag CutDagService, bs blockstore.GCBlockstore, pin pin.Pinner) *DagParser {
 	return &DagParser{
 		ctx: ctx,
-		dag: dag,
 		bs:  bs,
 		pin: pin,
+		dag: merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs))),
 	}
 }
 
 func (dp *DagParser) Get(_ context.Context, c cid.Cid) (blocks.Block, error) {
 	return dp.dag.Get(dp.ctx, c)
+}
+
+func (dp *DagParser) Exists(c cid.Cid) bool {
+	if blk, err := dp.Get(context.TODO(), c); err == nil && blk != nil {
+		return true
+	}
+	return false
 }
 
 func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error) {
@@ -60,8 +71,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 	//    ipfs dag import $( ... | ipfs-dagger --stdout=carfifos )
 	//
 	if doPinRoots {
-		unlocker := dp.bs.PinLock(dp.ctx)
-		defer unlocker.Unlock(dp.ctx)
+		defer dp.bs.PinLock(dp.ctx).Unlock(dp.ctx)
 	}
 
 	// this is *not* a transaction
@@ -155,11 +165,7 @@ func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error)
 		}
 	}
 
-	p, err := path.NewPath("/ipfs/" + car.Roots[0].String())
-	if err != nil {
-		return nil, err
-	}
-
+	p := path.FromCid(car.Roots[0])
 	return p, nil
 }
 
@@ -212,10 +218,10 @@ func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node, doPinRoots boo
 }
 
 type VirtualBlockStore struct {
-	blk *blocks.BasicBlock
+	blk blocks.Block
 }
 
-func NewVirtualBlockStore(blk *blocks.BasicBlock) *VirtualBlockStore {
+func NewVirtualBlockStore(blk blocks.Block) *VirtualBlockStore {
 	return &VirtualBlockStore{
 		blk: blk,
 	}

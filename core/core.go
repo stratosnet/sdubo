@@ -54,10 +54,10 @@ import (
 	"github.com/ipfs/kubo/core/node"
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/fuse/mount"
-	"github.com/ipfs/kubo/mfscl"
 	"github.com/ipfs/kubo/p2p"
 	"github.com/ipfs/kubo/repo"
 	irouting "github.com/ipfs/kubo/routing"
+	shockmfs "github.com/ipfs/kubo/shock/mfs"
 )
 
 var log = logging.Logger("core")
@@ -94,8 +94,7 @@ type IpfsNode struct {
 	// FilesRoot                   *mfs.Root
 
 	RecordValidator       record.Validator
-	GetNamespaceFilesRoot mfscl.GetRoot
-	MFSCluster            *mfscl.MFSCluster
+	GetNamespaceFilesRoot shockmfs.GetRoot
 
 	// Online
 	PeerHost                  p2phost.Host               `optional:"true"` // the network host (server+client)

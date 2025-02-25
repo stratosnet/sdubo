@@ -17,12 +17,15 @@ import (
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-log"
 	gocarv2 "github.com/ipld/go-car/v2"
 	ma "github.com/multiformats/go-multiaddr"
 	mbase "github.com/multiformats/go-multibase"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/stratosnet/sds/framework/crypto"
 )
+
+var logger = log.Logger("sutil")
 
 func RandomFileName(size int, ext string) (string, error) {
 	b := make([]byte, size)
@@ -127,17 +130,22 @@ func IsCAR(f files.Node) (bool, error) {
 		return false, fmt.Errorf("not a file")
 	}
 
+	// we need to seek at initial position as reader not copied during cbor read
+	defer func() {
+		fs, ok := file.(io.ReadSeeker)
+		if !ok {
+			return
+		}
+		if _, err := fs.Seek(0, io.SeekStart); err != nil {
+			logger.Errorf("failed to change cursor on position 0: %v", err)
+		}
+	}()
+
 	// TODO: Optimize and use header reading to detect cbor so we do not need to read a whole file
-	_, err := gocarv2.NewBlockReader(file)
-	if err != nil {
+	if _, err := gocarv2.NewBlockReader(file); err != nil {
 		return false, err
 	}
 
-	fs := file.(io.ReadSeeker)
-	// we need to seek at initial position as reader not copied during cbor read
-	if _, err := fs.Seek(0, io.SeekStart); err != nil {
-		return false, err
-	}
 	return true, nil
 }
 

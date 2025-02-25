@@ -1,10 +1,11 @@
-package conn
+package datastore
 
 import (
 	"context"
 	"math/rand"
 	"testing"
 
+	ds "github.com/ipfs/go-datastore"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,12 +24,15 @@ func TestRC_SimplePutAndGet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	rcluster, err := NewRc(opts)
+	rcluster, err := NewRedisDatastore(opts)
 	if err != nil {
 		panic(err)
 	}
 
-	requestKey := generateRandomString(16)
+	dsk := ds.NewKey("/local/filesroot")
+
+	requestKey := ds.NewKey(generateRandomString(16))
+	requestKey = JoinKeys(dsk, requestKey)
 	expectedResult := []byte{18, 32, 89, 184, 61, 176, 74, 172, 193, 30, 16, 215, 130, 92, 225, 10, 203, 158, 214, 245, 187, 163, 126, 230, 54, 12, 96, 124, 209, 59, 230, 244, 74, 108}
 
 	// 1. Check key for empty
