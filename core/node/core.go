@@ -246,7 +246,6 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 	}
 
 	dsk := datastore.NewKey("/local/filesroot")
-	offineDag := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
 	dsDag := shockdag.NewDsDagService(mfsDS, func(c cid.Cid) datastore.Key {
 		return shockds.JoinKeys(dsk, datastore.NewKey(fmt.Sprintf("blocks/%s", c.String())))
 	})
@@ -273,13 +272,9 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 				return nil, err
 			}
 
-			// legacy support
-			rnd, err := offineDag.Get(ctx, c)
+			rnd, err := dsDag.Get(ctx, c)
 			if err != nil {
-				rnd, err = dsDag.Get(ctx, c)
-				if err != nil {
-					return nil, fmt.Errorf("error loading filesroot from shock dag: %s", err)
-				}
+				return nil, fmt.Errorf("error loading filesroot from shock dag: %s", err)
 			}
 
 			pbnd, ok := rnd.(*merkledag.ProtoNode)
