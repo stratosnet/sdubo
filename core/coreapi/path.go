@@ -28,7 +28,10 @@ func (api *CoreAPI) ResolveNode(ctx context.Context, p path.Path) (ipld.Node, er
 		return nil, err
 	}
 
-	node, err := api.dag.Get(ctx, rp.RootCid())
+	node, err := api.mfsDag.Get(ctx, rp.RootCid())
+	if node == nil {
+		node, err = api.dag.Get(ctx, rp.RootCid())
+	}
 	if err != nil {
 		return nil, err
 	}

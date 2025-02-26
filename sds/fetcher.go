@@ -241,6 +241,7 @@ func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 	}
 
 	resp, err := f.rpc.UploadSign(wallet, oz.SequenceNumber, fileHash)
+	logger.Debugf("rpc.UploadSign resp: %+v, err: %v", resp, err)
 	if err != nil {
 		if isDublErr(err.Error()) || isMethodNotFound(err.Error()) {
 			return fileHash, nil

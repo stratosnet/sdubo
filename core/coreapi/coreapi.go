@@ -71,6 +71,9 @@ type CoreAPI struct {
 	ipldPathResolver   pathresolver.Resolver
 	unixFSPathResolver pathresolver.Resolver
 
+	// new
+	mfsDag ipld.DAGService
+
 	provider provider.System
 
 	pubSub *pubsub.PubSub
@@ -193,6 +196,8 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		dnsResolver:        n.DNSResolver,
 		ipldPathResolver:   n.IPLDPathResolver,
 		unixFSPathResolver: n.UnixFSPathResolver,
+
+		mfsDag: n.MFSRepo.DAG,
 
 		provider: n.Provider,
 
