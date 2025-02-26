@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"time"
 
+	logging "github.com/ipfs/go-log/v2"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
 )
+
+var logRpc = logging.Logger("sds/rpc")
 
 type jsonrpcMessage struct {
 	Version string          `json:"jsonrpc,omitempty"`
@@ -31,7 +34,7 @@ func wrapJsonRpc(method string, param []byte) []byte {
 	}
 	r, e := json.Marshal(request)
 	if e != nil {
-		logger.Error("json marshal error", e)
+		logRpc.Error("json marshal error", e)
 		return nil
 	}
 	return r
@@ -54,7 +57,7 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	params = append(params, param)
 	pm, err := json.Marshal(params)
 	if err != nil {
-		logger.Error("failed marshal param for " + method)
+		logRpc.Error("failed marshal param for " + method)
 		return err
 	}
 
@@ -62,9 +65,9 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	request := wrapJsonRpc(method, pm)
 
 	if len(request) < 300 {
-		logger.Debug("--> ", string(request))
+		logRpc.Debug("--> ", string(request))
 	} else {
-		logger.Debug("--> ", string(request[:230]), "... \"}]}")
+		logRpc.Debug("--> ", string(request[:230]), "... \"}]}")
 	}
 
 	// http post
@@ -84,15 +87,15 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 
 	body, _ := io.ReadAll(resp.Body)
 	if len(body) < 300 {
-		logger.Debug("<-- ", string(body))
+		logRpc.Debug("<-- ", string(body))
 	} else {
-		logger.Debug("<-- ", string(body[:230]), "... \"}]}")
+		logRpc.Debug("<-- ", string(body[:230]), "... \"}]}")
 	}
 
 	resp.Body.Close()
 
 	if len(body) == 0 {
-		logger.Error("emptry body after read buffer")
+		logRpc.Error("emptry body after read buffer")
 		return fmt.Errorf("empty response body")
 	}
 
@@ -105,7 +108,7 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 
 	err = json.Unmarshal(rsp.Result, &res)
 	if err != nil {
-		logger.Error("unmarshal failed")
+		logRpc.Error("unmarshal failed")
 		return err
 	}
 	return nil

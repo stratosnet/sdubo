@@ -67,7 +67,7 @@ type dsDagService struct {
 // Add adds a node to the dsDagService, storing the block in the BlockService
 func (n *dsDagService) Add(ctx context.Context, nd format.Node) error {
 	log.Debugf("dag service add cid: %s", nd.Cid())
-	log.Debugf("dag service add raw data: %s", nd.RawData())
+	log.Debugf("dag service add raw data: %b", nd.RawData())
 	return n.ds.Put(ctx, n.keyMaker(nd.Cid()), nd.RawData())
 }
 
@@ -92,7 +92,7 @@ func (n *dsDagService) Get(ctx context.Context, c cid.Cid) (format.Node, error) 
 	}
 
 	log.Debugf("dag service get cid: %s", c)
-	log.Debugf("dag service get raw data: %s", pbData)
+	log.Debugf("dag service get raw data: %b", pbData)
 
 	b := blocks.NewBlock(pbData)
 

@@ -56,12 +56,14 @@ func (dp *DagParser) Get(_ context.Context, c cid.Cid) (blocks.Block, error) {
 
 func (dp *DagParser) Exists(c cid.Cid) bool {
 	if blk, err := dp.Get(context.TODO(), c); err == nil && blk != nil {
+		logger.Debugf("Import block: %s found, details: %+v", c, blk)
 		return true
 	}
 	return false
 }
 
 func (dp *DagParser) Import(file files.File, doPinRoots bool) (path.Path, error) {
+	logger.Debugf("Starting to import file with pin: %t", doPinRoots)
 	blockDecoder := ipldlegacy.NewDecoder()
 
 	// grab a pinlock ( which doubles as a GC lock ) so that regardless of the
@@ -188,6 +190,7 @@ func (dp *DagParser) ExportWithStore(store gocar.ReadStore, rootCid cid.Cid) (fi
 }
 
 func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node, doPinRoots bool) (path.Path, error) {
+	logger.Debugf("Starting to import sds dag link with pin: %t for cid: %s", doPinRoots, cid_)
 	fs, ok := f.(io.ReadSeeker)
 	if !ok {
 		return nil, fmt.Errorf("not a seeker")
@@ -206,6 +209,8 @@ func (dp *DagParser) ImportSdsDagLink(cid_ cid.Cid, f files.Node, doPinRoots boo
 	if err != nil {
 		return nil, err
 	}
+
+	logger.Debugf("Got recovered block for sds dag import: %s", blk.Cid())
 
 	vbs := NewVirtualBlockStore(blk)
 
