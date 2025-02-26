@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/kubo/misc/sutil"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
+	"github.com/stratosnet/sds/sds-msg/protos"
 )
 
 type execInfo struct {
@@ -48,6 +49,7 @@ type Fetcher struct {
 	rpc            *Rpc
 	q              *fqueue
 	execRetryCount uint8
+	pollTimeout    uint8
 }
 
 func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
@@ -62,9 +64,10 @@ func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
 	}
 
 	f := &Fetcher{
-		cfg: cfg,
-		rpc: rpc,
-		q:   newFqueue(30, 100),
+		cfg:         cfg,
+		rpc:         rpc,
+		q:           newFqueue(30, 100),
+		pollTimeout: 15,
 	}
 
 	if !noRetry {
@@ -81,14 +84,15 @@ func isDublErr(ret string) bool {
 	return strings.Contains(ret, "Same file with the name")
 }
 
+func isMethodNotFound(ret string) bool {
+	return strings.Contains(ret, "does not exist/is not available")
+}
+
 func (f *Fetcher) retryFetchPoll() {
 	defer f.q.ticker.Stop()
 
-	for {
-		select {
-		case <-f.q.ticker.C:
-			f.retry()
-		}
+	for range f.q.ticker.C {
+		f.retry()
 	}
 }
 
@@ -134,6 +138,44 @@ func (f *Fetcher) getWallet(privKey string) (*SdsWallet, error) {
 		return nil, err
 	}
 	return wallet, nil
+}
+
+func (f *Fetcher) CheckStatus(privKey string, fileHash string, pollInterval uint16) (bool, error) {
+	wallet, err := f.getWallet(privKey)
+	if err != nil {
+		return false, err
+	}
+
+	done := make(chan struct{})
+	errChan := make(chan error)
+	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+	defer ticker.Stop()
+
+	go func() {
+		pollFileStatus := func() {
+			fsr, err := f.rpc.GetFileStatus(wallet, fileHash)
+			if err != nil {
+				errChan <- err
+			}
+			if fsr.FileUploadState == protos.FileUploadState_FINISHED {
+				done <- struct{}{}
+			}
+		}
+
+		pollFileStatus()
+		for range ticker.C {
+			pollFileStatus()
+		}
+	}()
+
+	select {
+	case <-done:
+		return true, nil
+	case err := <-errChan:
+		return false, err
+	case <-time.After(time.Duration(f.pollTimeout) * time.Second):
+		return false, fmt.Errorf("file upload timed out")
+	}
 }
 
 func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
@@ -193,10 +235,27 @@ func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 		return "", fmt.Errorf("failed sp upload data with error: %s", res.Return)
 	}
 
+	oz, err = f.rpc.GetOzone(wallet)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := f.rpc.UploadSign(wallet, oz.SequenceNumber, fileHash)
+	if err != nil {
+		if isDublErr(err.Error()) || isMethodNotFound(err.Error()) {
+			return fileHash, nil
+		}
+		return "", err
+	}
+
+	if isDublErr(resp.Return) {
+		return fileHash, nil
+	}
+
 	return fileHash, nil
 }
 
-func (f *Fetcher) download(wallet *SdsWallet, fileHash, storeName string, downloadCallback func(sequenceNumber string) (*rpc_api.Result, error)) ([]byte, error) {
+func (f *Fetcher) download(wallet *SdsWallet, fileHash string, downloadCallback func(sequenceNumber string) (*rpc_api.Result, error)) ([]byte, error) {
 	var (
 		fileSize uint64 = 0
 	)
@@ -261,7 +320,7 @@ func (f *Fetcher) Download(privKey, fileHash string) ([]byte, error) {
 		}
 		return res, nil
 	}
-	return f.download(wallet, fileHash, fileHash, callback)
+	return f.download(wallet, fileHash, callback)
 }
 
 func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
@@ -283,7 +342,7 @@ func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
 		}
 		return res, nil
 	}
-	return f.download(wallet, "", parsedLink.Link, callback)
+	return f.download(wallet, "", callback)
 }
 
 func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {

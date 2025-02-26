@@ -74,7 +74,7 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/prometheus/client_golang v1.20.5
 	github.com/redis/go-redis/v9 v9.7.0
-	github.com/stratosnet/sds v0.12.5
+	github.com/stratosnet/sds v0.12.5-0.20250225143307-b12a23ea037a
 	github.com/stratosnet/sds/framework v0.0.0-20241128173650-053ecefad7f6
 	github.com/stratosnet/sds/sds-msg v0.0.0-20241128173650-053ecefad7f6
 	github.com/stretchr/testify v1.10.0

@@ -143,7 +143,7 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 }
 
 func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
-	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(5)*time.Second)
+	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
 	// NOTE: Check first if file exists in ipfs
 	f, err := api.Unixfs().Get(ctxUfs, p)
 
@@ -168,7 +168,7 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 			logger.Debugf("Parsing sds link from map file")
 			np, err := api.Sds().Parse(ctx, mFile)
 			if err == nil {
-				ctxUfs, _ := context.WithTimeout(ctx, time.Duration(5)*time.Second)
+				ctxUfs, _ := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
 				logger.Debugf("Trying to get original file from dag store for path: %s", np)
 				f, err = api.Unixfs().Get(ctxUfs, np)
 				if err == nil {

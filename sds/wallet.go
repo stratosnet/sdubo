@@ -51,6 +51,15 @@ func (w *SdsWallet) GetBech32PubKey() (string, error) {
 	return wpk, nil
 }
 
+func (w *SdsWallet) SignGetFileStatus(fileHash string) ([]byte, error) {
+	nowSec := time.Now().Unix()
+	sign, err := w.privateKey.Sign([]byte(msgutils.GetFileStatusWalletSignMessage(fileHash, w.GetAddress(), nowSec)))
+	if err != nil {
+		return nil, err
+	}
+	return sign, nil
+}
+
 func (w *SdsWallet) SignFileUpload(sn, fileHash string) ([]byte, error) {
 	nowSec := time.Now().Unix()
 	sign, err := w.privateKey.Sign([]byte(msgutils.GetFileUploadWalletSignMessage(fileHash, w.GetAddress(), sn, nowSec)))

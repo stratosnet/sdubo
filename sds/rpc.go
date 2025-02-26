@@ -12,6 +12,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 	rpc_api "github.com/stratosnet/sds/pp/api/rpc"
+	"github.com/stratosnet/sds/sds-msg/protos"
 )
 
 var logRpc = logging.Logger("sds/rpc")
@@ -157,6 +158,67 @@ func (rpc *Rpc) RequestUpload(wallet *SdsWallet, sn, fileName, fileHash string, 
 
 	var res rpc_api.Result
 	err = rpc.sendRequest("user_requestUpload", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) UploadSign(wallet *SdsWallet, sn, fileHash string) (*rpc_api.Result, error) {
+	nowSec := time.Now().Unix()
+	// signature
+	sign, err := wallet.SignFileUpload(sn, fileHash)
+	if err != nil {
+		return nil, err
+	}
+	wpk, err := wallet.GetBech32PubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	req := rpc_api.ParamUploadSign{
+		FileHash: fileHash,
+		Signature: rpc_api.Signature{
+			Address:   wallet.GetAddress(),
+			Pubkey:    wpk,
+			Signature: hex.EncodeToString(sign),
+		},
+		ReqTime:        nowSec,
+		SequenceNumber: sn,
+	}
+
+	var res rpc_api.Result
+	err = rpc.sendRequest("user_uploadSign", req, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (rpc *Rpc) GetFileStatus(wallet *SdsWallet, fileHash string) (*rpc_api.FileStatusResult, error) {
+	nowSec := time.Now().Unix()
+	// signature
+	sign, err := wallet.SignGetFileStatus(fileHash)
+	if err != nil {
+		return nil, err
+	}
+	wpk, err := wallet.GetBech32PubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	req := rpc_api.ParamGetFileStatus{
+		FileHash: fileHash,
+		Signature: rpc_api.Signature{
+			Address:   wallet.GetAddress(),
+			Pubkey:    wpk,
+			Signature: hex.EncodeToString(sign),
+		},
+		ReqTime: nowSec,
+	}
+
+	res := rpc_api.FileStatusResult{FileUploadState: protos.FileUploadState_UNKNOWN}
+	err = rpc.sendRequest("user_getFileStatus", req, &res)
 	if err != nil {
 		return nil, err
 	}
