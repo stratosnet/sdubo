@@ -15,6 +15,7 @@ import (
 
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/path"
+	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/kubo/core/commands/cmdutils"
 	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/coreiface/options"
@@ -25,6 +26,8 @@ var (
 	spfsUserIdOption  = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
 	spfsPrivKeyOption = cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.")
 )
+
+var logger = logging.Logger("core/commands/sds")
 
 // TODO: Add pin per user, currently always pin
 func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ cid.Cid, nd *core.IpfsNode, pin bool, onlyHash bool) (path.ImmutablePath, error) {
@@ -143,12 +146,14 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(5)*time.Second)
 	// NOTE: Check first if file exists in ipfs
 	f, err := api.Unixfs().Get(ctxUfs, p)
+
 	// Not exist, trying to get from sds
 	if err != nil {
 		if !cfg.Sds.Enabled {
 			return nil, err
 		}
 
+		logger.Debugf("Downloading from sds by path: %s", p)
 		sf, err := api.Sds().Download(ctx, p, opts...)
 		if err != nil {
 			return nil, err
@@ -160,12 +165,16 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 		// NOTE: Risk of broke API with mailware map file?
 		mFile, ok := f.(files.File)
 		if ok {
+			logger.Debugf("Parsing sds link from map file")
 			np, err := api.Sds().Parse(ctx, mFile)
 			if err == nil {
+				ctxUfs, _ := context.WithTimeout(ctx, time.Duration(5)*time.Second)
+				logger.Debugf("Trying to get original file from dag store for path: %s", np)
 				f, err = api.Unixfs().Get(ctxUfs, np)
 				if err == nil {
 					return f, nil
 				}
+				logger.Debugf("Origin not found, downloading from sds by path: %s", p)
 				sf, err := api.Sds().Download(ctx, p, opts...)
 				if err != nil {
 					return nil, err
@@ -177,11 +186,13 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 	}
 
 	isCar, _ := sutil.IsCAR(f)
+	logger.Debugf("Get car file: %t for cid: %s", isCar, p)
 	// after fetched car, we need to be sure it is a car, otherwise handle it as ipfs file
 	if isCar {
 		// TODO: Add a way to import only if it is not exists
 		dp := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning)
 		sdsP, err := dp.Import(f.(files.File), false)
+		logger.Debugf("Imported car for original file on path: %s", sdsP)
 		if err != nil {
 			return nil, err
 		}
@@ -196,17 +207,18 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 			return nil, err
 		}
 
-		if !dp.Exists(cid_) {
-			if _, err = dp.ImportSdsDagLink(cid_, f, true); err != nil {
-				return nil, err
-			}
+		if _, err = dp.ImportSdsDagLink(cid_, f, true); err != nil {
+			return nil, err
 		}
+		logger.Debugf("Imported link for original file on cid: %s", cid_)
 
+		logger.Debugf("Retrieving original file from dag store for path: %s", sdsP)
 		f, err = api.Unixfs().Get(ctx, sdsP)
+		logger.Debugf("Dag store file err on resp: %v", err)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return f, err
+	return f, nil
 }

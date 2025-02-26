@@ -120,7 +120,6 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 	)
 
 	ctx2, _ := context.WithTimeout(ctx, time.Duration(SpfsGatewayBlockTimeout)*time.Second)
-	// defer cancelFn()
 
 	// required to get v0 in case of dag proto
 	path_, err := toCidV0(path_)
@@ -158,6 +157,8 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}
+
+				ctx2, _ := context.WithTimeout(ctx, time.Duration(SpfsGatewayBlockTimeout)*time.Second)
 				md, n, err = sb.b.Get(ctx2, npath_, ranges...)
 				if err == nil {
 					return md, n, err
@@ -190,10 +191,8 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		if !dp.Exists(cid_) {
-			if _, err = dp.ImportSdsDagLink(cid_, files.NewBytesFile(fileData), true); err != nil {
-				return gateway.ContentPathMetadata{}, nil, errS
-			}
+		if _, err = dp.ImportSdsDagLink(cid_, files.NewBytesFile(fileData), true); err != nil {
+			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
 		path_, errS = path.NewImmutablePath(sdsP)
