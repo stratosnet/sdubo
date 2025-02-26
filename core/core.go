@@ -95,6 +95,7 @@ type IpfsNode struct {
 
 	RecordValidator       record.Validator
 	GetNamespaceFilesRoot shockmfs.GetRoot
+	MFSRepo               *shockmfs.Repo
 
 	// Online
 	PeerHost                  p2phost.Host               `optional:"true"` // the network host (server+client)

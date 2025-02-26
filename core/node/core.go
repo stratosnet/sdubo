@@ -216,52 +216,52 @@ func Files(mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.
 	return root, err
 }
 
-func getMFSDatastore(cfg *config.Config) (ds.Datastore, error) {
+var dsk = datastore.NewKey("/local/filesroot")
+
+func MFSRepo(cfg *config.Config) (*shockmfs.Repo, error) {
+	var (
+		mfsDS ds.Datastore
+		err   error
+	)
 	if cfg.Shock.MFS != nil {
-		mfsDS, err := shockds.Parse(cfg.Shock.MFS.DSN)
+		mfsDS, err = shockds.Parse(cfg.Shock.MFS.DSN)
 		if err != nil {
 			return nil, err
 		}
-		return mfsDS, nil
 	} else {
 		fn, err := config.Path("", "/mfs_blocks")
 		if err != nil {
 			return nil, err
 		}
-		mfsDS, err := levelds.NewDatastore(fn, &levelds.Options{
+		mfsDS, err = levelds.NewDatastore(fn, &levelds.Options{
 			Compression: ldbopts.SnappyCompression,
 		})
 		if err != nil {
 			return nil, err
 		}
-		return mfsDS, nil
-	}
-}
-
-// NamespaceFiles loads persisted MFS root for custom namespace
-func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, dag format.DAGService, bs blockstore.Blockstore) (shockmfs.GetRoot, error) {
-	mfsDS, err := getMFSDatastore(cfg)
-	if err != nil {
-		return nil, err
 	}
 
-	dsk := datastore.NewKey("/local/filesroot")
 	dsDag := shockdag.NewDsDagService(mfsDS, func(c cid.Cid) datastore.Key {
 		return shockds.JoinKeys(dsk, datastore.NewKey(fmt.Sprintf("blocks/%s", c.String())))
 	})
 
+	return &shockmfs.Repo{DS: mfsDS, DAG: dsDag}, nil
+}
+
+// NamespaceFiles loads persisted MFS root for custom namespace
+func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle, repo repo.Repo, mfsRepo *shockmfs.Repo, dag format.DAGService, bs blockstore.Blockstore) (shockmfs.GetRoot, error) {
 	getNode := func(ctx context.Context, ns string) (*merkledag.ProtoNode, error) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		mfsDsk := shockds.JoinKeys(dsk, datastore.NewKey(ns))
 
-		val, err := mfsDS.Get(ctx, mfsDsk)
+		val, err := mfsRepo.DS.Get(ctx, mfsDsk)
 
 		switch {
 		case err == datastore.ErrNotFound || val == nil:
 			nd := unixfs.EmptyDirNode()
-			err := dsDag.Add(ctx, nd)
+			err := mfsRepo.DAG.Add(ctx, nd)
 			if err != nil {
 				return nil, fmt.Errorf("failure writing filesroot to dagstore: %s", err)
 			}
@@ -272,7 +272,7 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 				return nil, err
 			}
 
-			rnd, err := dsDag.Get(ctx, c)
+			rnd, err := mfsRepo.DAG.Get(ctx, c)
 			if err != nil {
 				return nil, fmt.Errorf("error loading filesroot from shock dag: %s", err)
 			}
@@ -300,10 +300,10 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 			if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
 				return err
 			}
-			if err := mfsDS.Put(ctx, mfsDsk, c.Bytes()); err != nil {
+			if err := mfsRepo.DS.Put(ctx, mfsDsk, c.Bytes()); err != nil {
 				return err
 			}
-			return mfsDS.Sync(ctx, mfsDsk)
+			return mfsRepo.DS.Sync(ctx, mfsDsk)
 		}
 
 		nd, err := getNode(ctx, ns)
@@ -311,7 +311,7 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 			return nil, err
 		}
 
-		return mfs.NewRoot(ctx, dsDag, nd, pf)
+		return mfs.NewRoot(ctx, mfsRepo.DAG, nd, pf)
 	}
 
 	return getRoot, nil
