@@ -20,7 +20,7 @@ func generateRandomString(length int) string {
 }
 
 func TestRC_SimplePutAndGet(t *testing.T) {
-	opts, err := redis.ParseClusterURL("redis://127.0.0.1:6379")
+	opts, err := redis.ParseClusterURL("redis://192.168.64.1:6379")
 	if err != nil {
 		panic(err)
 	}
