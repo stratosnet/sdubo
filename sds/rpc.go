@@ -18,11 +18,31 @@ import (
 var logRpc = logging.Logger("sds/rpc")
 
 type jsonrpcMessage struct {
-	Version string          `json:"jsonrpc,omitempty"`
-	ID      int             `json:"id,omitempty"`
-	Method  string          `json:"method,omitempty"`
+	Version string          `json:"jsonrpc"`
+	ID      int             `json:"id"`
+	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type jsonrpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
+func (e jsonrpcError) Error() string {
+	return e.String()
+}
+
+func (e *jsonrpcError) String() string {
+	return fmt.Sprintf("jsonrpc request error: code: %d; message: %s", e.Code, e.Message)
+}
+
+type jsonrpcResponse struct {
+	Version string          `json:"jsonrpc"`
+	ID      int             `json:"id"`
 	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *jsonrpcError   `json:"error,omitempty"`
 }
 
 func wrapJsonRpc(method string, param []byte) []byte {
@@ -96,15 +116,21 @@ func (rpc *Rpc) sendRequest(method string, param any, res any) error {
 	resp.Body.Close()
 
 	if len(body) == 0 {
-		logRpc.Error("emptry body after read buffer")
+		logRpc.Error("empty body after read buffer")
 		return fmt.Errorf("empty response body")
 	}
 
 	// handle rsp
-	var rsp jsonrpcMessage
+	var rsp jsonrpcResponse
 	err = json.Unmarshal(body, &rsp)
 	if err != nil {
 		return err
+	}
+
+	logRpc.Debugf("got json response: %+v", rsp)
+
+	if rsp.Error != nil {
+		return rsp.Error
 	}
 
 	err = json.Unmarshal(rsp.Result, &res)
