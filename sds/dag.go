@@ -41,7 +41,7 @@ type DagParser struct {
 	pin pin.Pinner
 }
 
-func NewDagParser(ctx context.Context, dag CutDagService, bs blockstore.GCBlockstore, pin pin.Pinner) *DagParser {
+func NewDagParser(ctx context.Context, bs blockstore.GCBlockstore, pin pin.Pinner) *DagParser {
 	return &DagParser{
 		ctx: ctx,
 		bs:  bs,

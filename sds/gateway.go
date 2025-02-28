@@ -174,7 +174,7 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 
 	isCar, _ := sutil.IsCAR(files.NewBytesFile(fileData))
 	if isCar {
-		dp := NewDagParser(ctx, sb.dag, sb.bs, sb.pin)
+		dp := NewDagParser(ctx, sb.bs, sb.pin)
 		// TODO: Add a way to import only if it is not exists
 		sdsP, errS := dp.Import(files.NewBytesFile(fileData), false)
 		if errS != nil {

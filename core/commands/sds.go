@@ -36,7 +36,7 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 		return path.ImmutablePath{}, fmt.Errorf("simulate feature disabled")
 	}
 
-	f, err := sds.NewDagParser(req.Context, api.Dag(), nd.Blockstore, nd.Pinning).Export(cid_)
+	f, err := sds.NewDagParser(req.Context, nd.Blockstore, nd.Pinning).Export(cid_)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
@@ -190,7 +190,7 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 	// after fetched car, we need to be sure it is a car, otherwise handle it as ipfs file
 	if isCar {
 		// TODO: Add a way to import only if it is not exists
-		dp := sds.NewDagParser(ctx, api.Dag(), nd.Blockstore, nd.Pinning)
+		dp := sds.NewDagParser(ctx, nd.Blockstore, nd.Pinning)
 		sdsP, err := dp.Import(f.(files.File), false)
 		logger.Debugf("Imported car for original file on path: %s", sdsP)
 		if err != nil {

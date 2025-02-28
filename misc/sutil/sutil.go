@@ -2,6 +2,7 @@ package sutil
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -20,12 +22,17 @@ import (
 	"github.com/ipfs/go-log"
 	gocarv2 "github.com/ipld/go-car/v2"
 	ma "github.com/multiformats/go-multiaddr"
+	madns "github.com/multiformats/go-multiaddr-dns"
+	manet "github.com/multiformats/go-multiaddr/net"
 	mbase "github.com/multiformats/go-multibase"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/stratosnet/sds/framework/crypto"
 )
 
 var logger = log.Logger("sutil")
+
+// declared as a var for testing purposes.
+var dnsResolver = madns.DefaultResolver
 
 func RandomFileName(size int, ext string) (string, error) {
 	b := make([]byte, size)
@@ -179,31 +186,53 @@ func GenerateUserMFSHash(userID, secret string) string {
 	return uuid.NewSHA1(uuid.NameSpaceURL, hash).String()
 }
 
+func ResolveAddr(ctx context.Context, addr ma.Multiaddr) (ma.Multiaddr, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelFunc()
+
+	addrs, err := dnsResolver.Resolve(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("non-resolvable addr: %s", addr)
+	}
+
+	return addrs[0], nil
+}
+
 func ParseHTTPAddress(addr string) (string, error) {
-	maddr, err := ma.NewMultiaddr(addr)
+	apiAddr, err := ma.NewMultiaddr(addr)
 	if err != nil {
 		return "", err
 	}
 
-	var ip, port, protocol string
+	_, err = ResolveAddr(context.TODO(), apiAddr)
+	if err != nil {
+		return "", err
+	}
 
-	components := ma.Split(maddr)
-	for _, c := range components {
-		comp := c.(*ma.Component)
-		switch comp.Protocol().Name {
-		case "ip4", "ip6":
-			ip = comp.Value()
-		case "tcp":
-			port = comp.Value()
-		case "http", "https":
-			protocol = comp.Protocol().Name
+	network, host, err := manet.DialArgs(apiAddr)
+	if err != nil {
+		return "", err
+	}
+
+	var protocol string
+
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		// RPC over HTTPS requires explicit schema in the address passed to cmdhttp.NewClient
+		httpAddr := apiAddr.String()
+		if !strings.HasPrefix(host, "http:") && !strings.HasPrefix(host, "https:") && (strings.Contains(httpAddr, "/https") || strings.Contains(httpAddr, "/tls/http")) {
+			protocol = "https"
+		} else {
+			protocol = "http"
 		}
+	default:
+		return "", fmt.Errorf("unsupported API address: %s", apiAddr)
 	}
 
-	if ip == "" || port == "" || protocol == "" {
-		return "", fmt.Errorf("multiaddr must contain both ip and tcp and http")
-	}
-
-	url := fmt.Sprintf("%s://%s:%s", protocol, ip, port)
+	url := fmt.Sprintf("%s://%s", protocol, host)
 	return url, nil
 }

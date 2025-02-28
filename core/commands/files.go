@@ -502,7 +502,7 @@ being GC'ed.
 		}
 
 		if flush {
-			if _, err := mfs.FlushPath(req.Context, filesRoot dst); err != nil {
+			if _, err := mfs.FlushPath(req.Context, filesRoot, dst); err != nil {
 				return fmt.Errorf("cp: cannot flush the created file %s: %s", dst, err)
 			}
 			// Flush parent to clear directory cache and free memory.

@@ -148,14 +148,20 @@ func (f *Fetcher) CheckStatus(privKey string, fileHash string, pollInterval uint
 
 	done := make(chan struct{})
 	errChan := make(chan error)
+
 	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+
 	defer ticker.Stop()
 
 	go func() {
 		pollFileStatus := func() {
 			fsr, err := f.rpc.GetFileStatus(wallet, fileHash)
 			if err != nil {
-				errChan <- err
+				if isMethodNotFound(err.Error()) {
+					done <- struct{}{}
+				} else {
+					errChan <- err
+				}
 			}
 			if fsr.FileUploadState == protos.FileUploadState_FINISHED {
 				done <- struct{}{}
