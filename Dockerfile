@@ -22,7 +22,7 @@ ARG MAKE_TARGET=build
 # Also: fix getting HEAD commit hash via git rev-parse.
 RUN cd $SRC_DIR \
   && mkdir -p .git/objects \
-  && GOOS=$TARGETOS GOARCH=$TARGETARCH GOFLAGS=-buildvcs=false make ${MAKE_TARGET} IPFS_PLUGINS=$IPFS_PLUGINS
+  && GOOS=$TARGETOS GOARCH=$TARGETARCH GOFLAGS="-buildvcs=false -mod=mod" make ${MAKE_TARGET} IPFS_PLUGINS=$IPFS_PLUGINS
 
 # Using Debian Buster because the version of busybox we're using is based on it
 # and we want to make sure the libraries we're using are compatible. That's also
@@ -40,6 +40,7 @@ RUN set -eux; \
     # This installs fusermount which we later copy over to the target image.
     fuse \
     ca-certificates \
+    mailcap \
 	; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -52,6 +53,7 @@ COPY --from=utilities /usr/sbin/gosu /sbin/gosu
 COPY --from=utilities /usr/bin/tini /sbin/tini
 COPY --from=utilities /bin/fusermount /usr/local/bin/fusermount
 COPY --from=utilities /etc/ssl/certs /etc/ssl/certs
+COPY --from=utilities /etc/mime.types /etc/mime.types
 COPY --from=builder $SRC_DIR/cmd/ipfs/ipfs /usr/local/bin/ipfs
 COPY --from=builder $SRC_DIR/bin/container_daemon /usr/local/bin/start_ipfs
 COPY --from=builder $SRC_DIR/bin/container_init_run /usr/local/bin/container_init_run
