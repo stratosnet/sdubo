@@ -30,6 +30,7 @@ import (
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/sds"
+	shockdag "github.com/ipfs/kubo/shock/spld/merkledag"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	record "github.com/libp2p/go-libp2p-record"
 	ci "github.com/libp2p/go-libp2p/core/crypto"
@@ -70,9 +71,6 @@ type CoreAPI struct {
 	dnsResolver        *madns.Resolver
 	ipldPathResolver   pathresolver.Resolver
 	unixFSPathResolver pathresolver.Resolver
-
-	// new
-	mfsDag ipld.DAGService
 
 	provider provider.System
 
@@ -182,8 +180,8 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		baseBlocks: n.BaseBlocks,
 		pinning:    n.Pinning,
 
-		blocks:               n.Blocks,
-		dag:                  n.DAG,
+		blocks: n.Blocks,
+		// dag:                  n.DAG,
 		ipldFetcherFactory:   n.IPLDFetcherFactory,
 		unixFSFetcherFactory: n.UnixFSFetcherFactory,
 
@@ -197,8 +195,6 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		ipldPathResolver:   n.IPLDPathResolver,
 		unixFSPathResolver: n.UnixFSPathResolver,
 
-		mfsDag: n.MFSRepo.DAG,
-
 		provider: n.Provider,
 
 		pubSub: n.PubSub,
@@ -206,6 +202,13 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		nd:         n,
 		parentOpts: settings,
 	}
+
+	// Shock dag teraphy
+	subAPI.dag = shockdag.NewMultiDagService(
+		[]ipld.NodeGetter{n.MFSRepo.DAG, n.DAG}, // ! order matter !
+		[]ipld.NodeAdder{n.DAG},
+		[]ipld.DAGService{n.DAG},
+	)
 
 	subAPI.checkOnline = func(allowOffline bool) error {
 		if !n.IsOnline && !allowOffline {

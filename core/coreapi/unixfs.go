@@ -256,10 +256,7 @@ func (api *UnixfsAPI) processLink(ctx context.Context, linkres ft.LinkResult, se
 		lnk.Size = linkres.Link.Size
 	case cid.DagProtobuf:
 		if settings.ResolveChildren {
-			linkNode, err := linkres.Link.GetNode(ctx, api.mfsDag)
-			if err != nil {
-				linkNode, err = linkres.Link.GetNode(ctx, api.dag)
-			}
+			linkNode, err := linkres.Link.GetNode(ctx, api.dag)
 			if err != nil {
 				return coreiface.DirEntry{}, err
 			}

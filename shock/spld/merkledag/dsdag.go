@@ -3,31 +3,12 @@ package merkledag
 import (
 	"context"
 
-	merkledag "github.com/ipfs/boxo/ipld/merkledag"
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
 	ds "github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
 	legacy "github.com/ipfs/go-ipld-legacy"
-	logging "github.com/ipfs/go-log/v2"
-	dagpb "github.com/ipld/go-codec-dagpb"
-
-	// blank import is used to register the IPLD raw codec
-	_ "github.com/ipld/go-ipld-prime/codec/raw"
-	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 )
-
-var ipldLegacyDecoder *legacy.Decoder
-
-var log = logging.Logger("shock/merkledag")
-
-// TODO: Don't require global registries
-func init() {
-	d := legacy.NewDecoder()
-	d.RegisterCodec(cid.DagProtobuf, dagpb.Type.PBNode, merkledag.ProtoNodeConverter)
-	d.RegisterCodec(cid.Raw, basicnode.Prototype.Bytes, merkledag.RawNodeConverter)
-	ipldLegacyDecoder = d
-}
 
 func dedupKeys(keys []cid.Cid) []cid.Cid {
 	set := cid.NewSet()
@@ -44,7 +25,7 @@ type createDagKey func(c cid.Cid) ds.Key
 
 // NewDsDagService constructs a new dsDagService (using the default implementation).
 // Note that the default implementation is also an ipld.LinkGetter.
-func NewDsDagService(ds ds.Datastore, keyMaker createDagKey) *dsDagService {
+func NewDsDagService(ds ds.Datastore, keyMaker createDagKey) format.DAGService {
 	if ds == nil {
 		panic("datastore is nil")
 	}
@@ -66,8 +47,8 @@ type dsDagService struct {
 
 // Add adds a node to the dsDagService, storing the block in the BlockService
 func (n *dsDagService) Add(ctx context.Context, nd format.Node) error {
-	log.Debugf("dag service add cid: %s", nd.Cid())
-	log.Debugf("dag service add raw data: %b", nd.RawData())
+	log.Debugf("ds dag service add cid: %s", nd.Cid())
+	log.Debugf("ds dag service add raw data: %b", nd.RawData())
 	return n.ds.Put(ctx, n.keyMaker(nd.Cid()), nd.RawData())
 }
 
@@ -91,8 +72,8 @@ func (n *dsDagService) Get(ctx context.Context, c cid.Cid) (format.Node, error) 
 		return nil, err
 	}
 
-	log.Debugf("dag service get cid: %s", c)
-	log.Debugf("dag service get raw data: %b", pbData)
+	log.Debugf("ds dag service get cid: %s", c)
+	log.Debugf("ds dag service get raw data: %b", pbData)
 
 	b := blocks.NewBlock(pbData)
 
@@ -136,7 +117,7 @@ func (n *dsDagService) GetLinks(ctx context.Context, c cid.Cid) ([]*format.Link,
 }
 
 func (n *dsDagService) Remove(ctx context.Context, c cid.Cid) error {
-	log.Debugf("dag service remove cid: %s", c)
+	log.Debugf("ds dag service remove cid: %s", c)
 	return n.ds.Delete(ctx, n.keyMaker(c))
 }
 
