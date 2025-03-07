@@ -390,7 +390,8 @@ See 'dag export' and 'dag import' for more information.
 				}
 
 				// creating MFS pointers when optional --to-files is set
-				if toFilesSet {
+				// + ignore mfs if sds enabled
+				if toFilesSet && !cfg.Sds.Enabled {
 					if addit.Name() == "" {
 						errCh <- fmt.Errorf("%s: cannot add unnamed files to MFS", toFilesOptionName)
 						return
