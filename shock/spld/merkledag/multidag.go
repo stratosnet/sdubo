@@ -76,6 +76,11 @@ func (n *multiDagService) Get(ctx context.Context, c cid.Cid) (format.Node, erro
 		}
 	}
 
+	// in case of node found on another iteration, we should clear err
+	if nd != nil {
+		err = nil
+	}
+
 	return nd, err
 }
 
