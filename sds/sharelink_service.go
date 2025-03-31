@@ -94,11 +94,11 @@ func (s *ShareLinkService) runCreateShareLinks() {
 				continue
 			}
 
-			found, _ := s.fetcher.CheckStatus(sdata.PrivateKey, sdata.FileHash, 0)
-			if found {
-				logger.Debugf("Share link found '%s', skip", sdata.Cid)
-				continue
-			}
+			// found, _ := s.fetcher.CheckStatus(sdata.PrivateKey, sdata.FileHash, 0)
+			// if found {
+			// 	logger.Debugf("Share link found '%s', skip", sdata.Cid)
+			// 	continue
+			// }
 
 			if _, err := s.fetcher.CreateShareLink(sdata.PrivateKey, sdata.FileHash, sdata.Cid.String()); err != nil {
 				logger.Warnf("failed to create share link details: %v", err)
