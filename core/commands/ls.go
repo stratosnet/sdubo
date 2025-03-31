@@ -70,7 +70,6 @@ The JSON output contains type information.
 		cmds.BoolOption(lsResolveTypeOptionName, "Resolve linked objects to find out their types.").WithDefault(true),
 		cmds.BoolOption(lsSizeOptionName, "Resolve linked objects to find out their file size.").WithDefault(true),
 		cmds.BoolOption(lsStreamOptionName, "s", "Enable experimental streaming of directory entries as they are traversed."),
-		spfsPrivKeyOption,
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		api, err := cmdenv.GetApi(env, req)
@@ -175,11 +174,6 @@ The JSON output contains type information.
 				}
 				if err = processLink(paths[i], lsLink); err != nil {
 					return err
-				}
-
-				// NOTE: Tmp fix and should be removed here after
-				if err := sdsTmpRecreateShareLink(api, lsCtx, req, link.Cid); err != nil {
-					log.Errorf("failed to create tmp share link, details: %v", err)
 				}
 			}
 			if err = <-lsErr; err != nil {

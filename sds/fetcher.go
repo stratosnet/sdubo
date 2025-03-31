@@ -141,7 +141,7 @@ func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 		if isDublErr(res.Return) {
 			return fileHash, nil
 		}
-		return "", fmt.Errorf("failed sp request upload with error: %s", res.Return)
+		return "", fmt.Errorf("failed sp request upload with error: %s:%s", res.Return, res.Detail)
 	}
 
 	for res.Return == rpc_api.UPLOAD_DATA {
@@ -165,7 +165,7 @@ func (f *Fetcher) Upload(privKey string, fileData []byte) (string, error) {
 		if isDublErr(res.Return) {
 			return fileHash, nil
 		}
-		return "", fmt.Errorf("failed sp upload data with error: %s", res.Return)
+		return "", fmt.Errorf("failed sp upload data with error: %s:%s", res.Return, res.Detail)
 	}
 
 	oz, err = f.rpc.GetOzone(wallet)
@@ -235,7 +235,7 @@ func (f *Fetcher) download(wallet *SdsWallet, fileHash string, downloadCallback 
 		}
 	}
 	if res.Return != rpc_api.SUCCESS {
-		return nil, fmt.Errorf("failed sp download with error: %s", res.Return)
+		return nil, fmt.Errorf("failed sp download with error: %s:%s", res.Return, res.Detail)
 	}
 
 	return fileData, nil
@@ -293,7 +293,7 @@ func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
 		}
 
 		if res.Return != rpc_api.SUCCESS {
-			return fmt.Errorf("share link creation failed, status code: %s", res.Return)
+			return fmt.Errorf("share link creation failed, status code: %s:%s", res.Return, res.Detail)
 		}
 
 		return nil
