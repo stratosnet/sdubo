@@ -392,6 +392,15 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		ipnsps = cfg.Ipns.UsePubsub.WithDefault(false)
 	}
 
+	if cfg.Sds.Enabled {
+		wallet, err := sds.NewSdsWallet(cfg.Sds.PrivateKey)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Sds Enabled")
+		fmt.Printf("Sds Node address: %s\n", wallet.GetAddress())
+	}
+
 	// Start assembling node config
 	ncfg := &core.BuildCfg{
 		Repo:                        repo,
