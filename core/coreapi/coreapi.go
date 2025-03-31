@@ -84,7 +84,8 @@ type CoreAPI struct {
 	parentOpts options.ApiSettings
 
 	// only for sds
-	sdsFetcher *sds.Fetcher
+	sdsFetcher       *sds.Fetcher
+	shareLinkService *sds.ShareLinkService
 }
 
 // NewCoreAPI creates new instance of IPFS CoreAPI backed by go-ipfs Node.
@@ -267,8 +268,12 @@ func (api *CoreAPI) WithOptions(opts ...options.ApiOption) (coreiface.CoreAPI, e
 		subAPI.dag = dag.NewDAGService(subAPI.blocks)
 	}
 
-	if settings.SdsFetcher != nil {
-		subAPI.sdsFetcher = settings.SdsFetcher.(*sds.Fetcher)
+	if cfg.Sds.Enabled {
+		subAPI.sdsFetcher, err = sds.NewFetcher(&cfg.Sds)
+		if err != nil {
+			return nil, err
+		}
+		subAPI.shareLinkService = sds.NewShareLinkService(n.MFSRepo.SDSDS, subAPI.sdsFetcher)
 	}
 
 	return subAPI, nil

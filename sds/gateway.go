@@ -33,7 +33,7 @@ type SdsBlocksBackend struct {
 }
 
 func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
-	fetcher, err := NewFetcher(cfg, true)
+	fetcher, err := NewFetcher(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +147,9 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 		// getting file data from gateway
 		fileData, errS = readAndResetGatewayResponse(n)
 		if errS == nil {
-			originalCid, errS := ParseLink(fileData)
+			link, errS := ParseLink(fileData)
 			if errS == nil {
-				oPath, errS := path.NewPath("/ipfs/" + originalCid.String())
+				oPath, errS := path.NewPath("/ipfs/" + link.OriginalCid)
 				if errS != nil {
 					return gateway.ContentPathMetadata{}, nil, errS
 				}

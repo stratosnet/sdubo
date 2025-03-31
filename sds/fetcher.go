@@ -13,46 +13,13 @@ import (
 	"github.com/stratosnet/sds/sds-msg/protos"
 )
 
-type execInfo struct {
-	name       string
-	fn         func() error
-	retryCount uint8
-}
-
-type fqueue struct {
-	ch     chan *execInfo // Channel to hold the queue elements in FIFO order
-	rCh    chan *execInfo // Channel to hold the queue elements in FIFO order to retry
-	ticker *time.Ticker   // Ticker for re-try mechanics
-}
-
-// newFqueue creates a new instance of fqueue with a specific size
-func newFqueue(pollRetryTime, size int) *fqueue {
-	return &fqueue{
-		ch:     make(chan *execInfo, size),
-		rCh:    make(chan *execInfo, size),
-		ticker: time.NewTicker(time.Duration(pollRetryTime) * time.Second),
-	}
-}
-
-// RetryQueue returns the channel of the fqueue to retry
-func (q *fqueue) RetryQueue() chan *execInfo {
-	return q.rCh
-}
-
-// Queue returns the channel of the fqueue
-func (q *fqueue) Queue() chan *execInfo {
-	return q.ch
-}
-
 type Fetcher struct {
-	cfg            *config.Sds
-	rpc            *Rpc
-	q              *fqueue
-	execRetryCount uint8
-	pollTimeout    uint8
+	cfg         *config.Sds
+	rpc         *Rpc
+	pollTimeout uint8
 }
 
-func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
+func NewFetcher(cfg *config.Sds) (*Fetcher, error) {
 	addr, err := sutil.ParseHTTPAddress(cfg.RPC)
 	if err != nil {
 		return nil, err
@@ -66,14 +33,7 @@ func NewFetcher(cfg *config.Sds, noRetry bool) (*Fetcher, error) {
 	f := &Fetcher{
 		cfg:         cfg,
 		rpc:         rpc,
-		q:           newFqueue(30, 100),
 		pollTimeout: 15,
-	}
-
-	if !noRetry {
-		f.execRetryCount = 5
-		go f.fetchPoll()
-		go f.retryFetchPoll()
 	}
 
 	return f, nil
@@ -86,46 +46,6 @@ func isDublErr(ret string) bool {
 
 func isMethodNotFound(ret string) bool {
 	return strings.Contains(ret, "does not exist/is not available")
-}
-
-func (f *Fetcher) retryFetchPoll() {
-	defer f.q.ticker.Stop()
-
-	for range f.q.ticker.C {
-		f.retry()
-	}
-}
-
-func (f *Fetcher) retry() {
-	for {
-		select {
-		case item := <-f.q.RetryQueue():
-			if item.retryCount > 0 {
-				item.retryCount -= 1
-			}
-			f.q.Queue() <- item
-		default:
-			return
-		}
-	}
-}
-
-func (f *Fetcher) fetchPoll() {
-	for item := range f.q.Queue() {
-		if err := f.execute(item); err != nil {
-			if item.retryCount != 0 {
-				f.q.RetryQueue() <- item
-			}
-		}
-	}
-}
-
-func (f *Fetcher) execute(ei *execInfo) error {
-	if err := ei.fn(); err != nil {
-		// TODO: Maybe handle only -5 (timeout)?
-		return err
-	}
-	return nil
 }
 
 func (f *Fetcher) getWallet(privKey string) (*SdsWallet, error) {
@@ -149,9 +69,13 @@ func (f *Fetcher) CheckStatus(privKey string, fileHash string, pollInterval uint
 	done := make(chan struct{})
 	errChan := make(chan error)
 
-	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+	var ticker *time.Ticker
 
-	defer ticker.Stop()
+	if pollInterval > 0 {
+		ticker = time.NewTicker(time.Duration(pollInterval) * time.Second)
+
+		defer ticker.Stop()
+	}
 
 	go func() {
 		pollFileStatus := func() {
@@ -169,8 +93,11 @@ func (f *Fetcher) CheckStatus(privKey string, fileHash string, pollInterval uint
 		}
 
 		pollFileStatus()
-		for range ticker.C {
-			pollFileStatus()
+
+		if ticker != nil {
+			for range ticker.C {
+				pollFileStatus()
+			}
 		}
 	}()
 
@@ -343,7 +270,7 @@ func (f *Fetcher) DownloadFromShare(privKey, shareLink string) ([]byte, error) {
 
 	callback := func(sequenceNumber string) (*rpc_api.Result, error) {
 		res, err := f.rpc.GetShared(wallet, sequenceNumber, parsedLink)
-		logger.Debugf("Fetcher Download DownloadFromShare res - err: %s", err)
+		logger.Debugf("Fetcher Download DownloadFromShare res - err: %v", err)
 		if err != nil {
 			return nil, err
 		}
@@ -360,7 +287,7 @@ func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
 
 	fn := func() error {
 		res, err := f.rpc.RequestShare(wallet, fileHash, &cid)
-		logger.Debugf("Fetcher CreateShareLink RequestShare res - err: %s", err)
+		logger.Debugf("Fetcher CreateShareLink RequestShare res - err: %v", err)
 		if err != nil {
 			return err
 		}
@@ -372,16 +299,8 @@ func (f *Fetcher) CreateShareLink(privKey, fileHash, cid string) (bool, error) {
 		return nil
 	}
 
-	if f.execRetryCount > 0 {
-		f.q.Queue() <- &execInfo{
-			name:       "CreateShareLink",
-			fn:         fn,
-			retryCount: f.execRetryCount,
-		}
-	} else {
-		if err := fn(); err != nil {
-			return false, err
-		}
+	if err := fn(); err != nil {
+		return false, err
 	}
 
 	return true, nil

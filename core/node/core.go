@@ -249,7 +249,18 @@ func MFSRepo(cfg *config.Config) (*shockmfs.Repo, error) {
 		return shockds.JoinKeys(dsk, datastore.NewKey(fmt.Sprintf("blocks/%s", c.String())))
 	})
 
-	return &shockmfs.Repo{DS: mfsDS, DAG: dsDag}, nil
+	sdsFn, err := config.Path("", "/sds")
+	if err != nil {
+		return nil, err
+	}
+	sdsDs, err := levelds.NewDatastore(sdsFn, &levelds.Options{
+		Compression: ldbopts.SnappyCompression,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &shockmfs.Repo{MFSDS: mfsDS, SDSDS: sdsDs, DAG: dsDag}, nil
 }
 
 // NamespaceFiles loads persisted MFS root for custom namespace
@@ -260,7 +271,7 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 
 		mfsDsk := shockds.JoinKeys(dsk, datastore.NewKey(ns))
 
-		val, err := mfsRepo.DS.Get(ctx, mfsDsk)
+		val, err := mfsRepo.MFSDS.Get(ctx, mfsDsk)
 
 		switch {
 		case err == datastore.ErrNotFound || val == nil:
@@ -304,10 +315,10 @@ func NamespaceFiles(cfg *config.Config, mctx helpers.MetricsCtx, lc fx.Lifecycle
 			if err := rootDS.Sync(ctx, filestore.FilestorePrefix); err != nil {
 				return err
 			}
-			if err := mfsRepo.DS.Put(ctx, mfsDsk, c.Bytes()); err != nil {
+			if err := mfsRepo.MFSDS.Put(ctx, mfsDsk, c.Bytes()); err != nil {
 				return err
 			}
-			return mfsRepo.DS.Sync(ctx, mfsDsk)
+			return mfsRepo.MFSDS.Sync(ctx, mfsDsk)
 		}
 
 		nd, err := getNode(ctx, ns)

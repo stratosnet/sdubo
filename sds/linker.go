@@ -61,15 +61,15 @@ func NewSdsFile(cid cid.Cid, fileHash string) (files.Node, error) {
 	return rfc, nil
 }
 
-func ParseLink(data []byte) (cid.Cid, error) {
+func ParseLink(data []byte) (*sdsprotos.SdsLinker, error) {
 	if len(data) == 0 {
-		return cid.Cid{}, fmt.Errorf("empty file data")
+		return nil, fmt.Errorf("empty file data")
 	}
 	link := &sdsprotos.SdsLinker{}
 	err := proto.Unmarshal(data, link)
 	if err != nil {
-		return cid.Cid{}, err
+		return nil, err
 	}
 
-	return cid.Parse(link.OriginalCid)
+	return link, nil
 }

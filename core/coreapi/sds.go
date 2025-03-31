@@ -34,7 +34,9 @@ func (api *SdsAPI) Link(ctx context.Context, cid cid.Cid, fileHash string, opts 
 	}
 
 	if !settings.OnlyHash {
-		go api.sdsFetcher.CreateShareLink(settings.PrivKey, fileHash, cid.String())
+		if err := api.shareLinkService.Add(ctx, cid, fileHash, settings.PrivKey); err != nil {
+			return nil, err
+		}
 	}
 
 	return f, nil
@@ -72,12 +74,12 @@ func (api *SdsAPI) Parse(ctx context.Context, file_ files.File) (path.ImmutableP
 		return path.ImmutablePath{}, err
 	}
 
-	originalCid, err := sds.ParseLink(fileData)
+	link, err := sds.ParseLink(fileData)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}
 
-	ip, err := path.NewPath("/ipfs/" + originalCid.String())
+	ip, err := path.NewPath("/ipfs/" + link.OriginalCid)
 	if err != nil {
 		return path.ImmutablePath{}, err
 	}

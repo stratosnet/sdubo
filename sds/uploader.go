@@ -70,16 +70,16 @@ func (u *Uploader) initRefetch() error {
 			return err
 		}
 
-		originCid, err := ParseLink(nd.RawData())
-		uLog.Debugf("Origin CID: %s from original CID: %s parsed with err: %v", originCid, streamedCid.Pin.Key, err)
+		link, err := ParseLink(nd.RawData())
+		uLog.Debugf("Origin CID: %v from original CID: %s parsed with err: %v", link, streamedCid.Pin.Key, err)
 		if err != nil {
 			return err
 		}
 
-		uLog.Debugf("Adding CID %s to a queue from refetch", originCid)
+		uLog.Debugf("Adding CID %s to a queue from refetch", link.OriginalCid)
 		// we do not know pk at this point
 		u.reqCh <- &uploadRequest{
-			cid:     originCid,
+			cid:     cid.MustParse(link.OriginalCid),
 			privKey: "",
 		}
 	}

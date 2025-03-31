@@ -3,7 +3,6 @@ package options
 type ApiSettings struct {
 	Offline     bool
 	FetchBlocks bool
-	SdsFetcher  SdsFetcher
 }
 
 type ApiOption func(*ApiSettings) error
@@ -12,7 +11,6 @@ func ApiOptions(opts ...ApiOption) (*ApiSettings, error) {
 	options := &ApiSettings{
 		Offline:     false,
 		FetchBlocks: true,
-		SdsFetcher:  nil,
 	}
 
 	return ApiOptionsTo(options, opts...)
@@ -44,21 +42,6 @@ func (apiOpts) Offline(offline bool) ApiOption {
 func (apiOpts) FetchBlocks(fetch bool) ApiOption {
 	return func(settings *ApiSettings) error {
 		settings.FetchBlocks = fetch
-		return nil
-	}
-}
-
-type SdsFetcher interface {
-	Download(privKey, fileHash string) ([]byte, error)
-	Upload(privKey string, fileData []byte) (string, error)
-}
-
-// sds
-//
-// PoC
-func (apiOpts) SdsFetcher(fetcher SdsFetcher) ApiOption {
-	return func(settings *ApiSettings) error {
-		settings.SdsFetcher = fetcher
 		return nil
 	}
 }

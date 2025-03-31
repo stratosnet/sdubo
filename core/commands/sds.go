@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -221,4 +222,49 @@ func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Conte
 	}
 
 	return f, nil
+}
+
+// sdsTmpRecreateShareLink is TMP fix sync for GC collected files
+func sdsTmpRecreateShareLink(api iface.CoreAPI, ctx context.Context, req *cmds.Request, c cid.Cid) error {
+	// NOTE: Tmp fix for files which was GC and get them from sds
+	sls := sds.NewShareLinkService(nil, nil)
+	privKey, _ := req.Options[sds.OptionSpfsPrivKey].(string)
+
+	offlineApi, err := api.WithOptions(options.Api.Offline(true))
+	if err != nil {
+		return err
+	}
+
+	ff, err := offlineApi.Unixfs().Get(ctx, path.FromCid(c))
+	fmt.Println("get tmp nd", ff, err)
+	if err != nil {
+		return err
+	}
+
+	mFile, ok := ff.(files.File)
+	if ok {
+		fsize, err := mFile.Size()
+		if err != nil {
+			return err
+		}
+
+		fileData := make([]byte, fsize)
+		_, err = io.ReadFull(mFile, fileData)
+		if err != nil {
+			return err
+		}
+
+		sdsLink, err := sds.ParseLink(fileData)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("sdsLink.OriginalCid", sdsLink.OriginalCid)
+		fmt.Println("sdsLink.SdsFileHash", sdsLink.SdsFileHash)
+
+		if err := sls.Add(ctx, cid.MustParse(sdsLink.OriginalCid), sdsLink.SdsFileHash, privKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }

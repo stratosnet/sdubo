@@ -9,6 +9,7 @@ import (
 type GetRoot func(ns string) (*mfs.Root, error)
 
 type Repo struct {
-	DS  datastore.Datastore
-	DAG format.DAGService
+	MFSDS datastore.Datastore
+	SDSDS datastore.Datastore
+	DAG   format.DAGService
 }
