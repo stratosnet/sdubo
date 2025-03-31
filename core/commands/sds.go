@@ -259,6 +259,7 @@ func sdsTmpRecreateShareLink(api iface.CoreAPI, ctx context.Context, req *cmds.R
 			return err
 		}
 
+		fmt.Println("sdsLink total cid", c.String())
 		fmt.Println("sdsLink.OriginalCid", sdsLink.OriginalCid)
 		fmt.Println("sdsLink.SdsFileHash", sdsLink.SdsFileHash)
 
