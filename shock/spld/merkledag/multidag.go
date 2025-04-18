@@ -36,7 +36,6 @@ type multiDagService struct {
 // Add adds a node to the dsDagService, storing the block in the BlockService
 func (n *multiDagService) Add(ctx context.Context, nd format.Node) error {
 	log.Debugf("multi dag service add cid: %s", nd.Cid())
-	log.Debugf("multi dag service add raw data: %b", nd.RawData())
 	for _, r := range n.writers {
 		if err := r.Add(ctx, nd); err != nil {
 			return err
@@ -72,7 +71,7 @@ func (n *multiDagService) Get(ctx context.Context, c cid.Cid) (format.Node, erro
 	for _, r := range n.readers {
 		nd, err = r.Get(ctx, c)
 		if err == nil {
-			log.Debugf("multi dag service get raw data: %b", nd.RawData())
+			log.Debugf("multi dag service get raw data for key: %s", c)
 			break
 		}
 	}
