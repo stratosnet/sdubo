@@ -40,37 +40,19 @@ func (api *HttpDagServ) Get(ctx context.Context, c cid.Cid) (format.Node, error)
 }
 
 func (api *HttpDagServ) GetMany(ctx context.Context, cids []cid.Cid) <-chan *format.NodeOption {
-	out := make(chan *format.NodeOption, len(cids))
+	out := make(chan *format.NodeOption)
 
-	sem := make(chan struct{}, 10)
-
-	go func() {
-		defer close(out)
-
-		for _, c := range cids {
-			c := c
+	for _, c := range cids {
+		// TODO: Consider limiting concurrency of this somehow
+		go func(c cid.Cid) {
+			n, err := api.Get(ctx, c)
 
 			select {
+			case out <- &format.NodeOption{Node: n, Err: err}:
 			case <-ctx.Done():
-				return
-			case sem <- struct{}{}:
-				go func() {
-					defer func() { <-sem }()
-
-					n, err := api.Get(ctx, c)
-					select {
-					case out <- &format.NodeOption{Node: n, Err: err}:
-					case <-ctx.Done():
-					}
-				}()
 			}
-		}
-
-		for i := 0; i < cap(sem); i++ {
-			sem <- struct{}{}
-		}
-	}()
-
+		}(c)
+	}
 	return out
 }
 
