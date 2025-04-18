@@ -2,6 +2,7 @@ package merkledag
 
 import (
 	"context"
+	"sync"
 
 	cid "github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
@@ -89,10 +90,12 @@ func (n *multiDagService) GetMany(ctx context.Context, keys []cid.Cid) <-chan *f
 	keys = dedupKeys(keys)
 	out := make(chan *format.NodeOption, len(keys))
 
-	defer close(out)
+	var wg sync.WaitGroup
+	wg.Add(len(keys))
 
 	for _, c := range keys {
 		go func(c cid.Cid) {
+			defer wg.Done()
 			nd, err := n.Get(ctx, c)
 			if err != nil {
 				out <- &format.NodeOption{Err: err}
@@ -103,6 +106,11 @@ func (n *multiDagService) GetMany(ctx context.Context, keys []cid.Cid) <-chan *f
 
 		}(c)
 	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
 
 	return out
 }
