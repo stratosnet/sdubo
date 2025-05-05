@@ -42,6 +42,8 @@ type Config struct {
 
 	// sds
 	Sds Sds
+	// sg (service-gateway)
+	Sg Sg
 	// new shock module to override default config for different services like dag, mfs etc.
 	Shock Shock
 

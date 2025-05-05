@@ -201,6 +201,7 @@ See 'dag export' and 'dag import' for more information.
 		cmds.Int64Option(mtimeOptionName, "Custom POSIX modification time to store in created UnixFS entries (seconds before or after the Unix Epoch). Disables raw-leaves. (experimental)"),
 		cmds.UintOption(mtimeNsecsOptionName, "Custom POSIX modification time (optional time fraction in nanoseconds)"),
 		spfsUserIdOption,
+		spfsProjectIdOption,
 		spfsPrivKeyOption,
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {

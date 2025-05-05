@@ -83,6 +83,7 @@ func InitWithIdentity(identity Identity) (*Config, error) {
 			Keep:            "",
 		},
 		Sds:   sdsConfig(),
+		Sg:    sgConfig(),
 		Shock: shockConfig(),
 	}
 

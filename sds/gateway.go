@@ -16,6 +16,7 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/misc/sutil"
+	"github.com/ipfs/kubo/sg"
 	fwtypes "github.com/stratosnet/sds/framework/types"
 )
 
@@ -24,27 +25,29 @@ const SpfsGatewayBlockTimeout = 30
 var _ gateway.IPFSBackend = (*SdsBlocksBackend)(nil)
 
 type SdsBlocksBackend struct {
-	b       gateway.IPFSBackend
-	cfg     *config.Sds
-	fetcher *Fetcher
-	dag     format.DAGService
-	bs      blockstore.GCBlockstore
-	pin     pin.Pinner
+	b        gateway.IPFSBackend
+	cfg      *config.Sds
+	fetcher  *Fetcher
+	reporter *sg.Reporter
+	dag      format.DAGService
+	bs       blockstore.GCBlockstore
+	pin      pin.Pinner
 }
 
-func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
+func NewSdsBlockBackend(b gateway.IPFSBackend, cfg *config.Sds, reporter *sg.Reporter, dag format.DAGService, bs blockstore.GCBlockstore, pin pin.Pinner) (*SdsBlocksBackend, error) {
 	fetcher, err := NewFetcher(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SdsBlocksBackend{
-		b:       b,
-		cfg:     cfg,
-		fetcher: fetcher,
-		dag:     dag,
-		bs:      bs,
-		pin:     pin,
+		b:        b,
+		cfg:      cfg,
+		fetcher:  fetcher,
+		reporter: reporter,
+		dag:      dag,
+		bs:       bs,
+		pin:      pin,
 	}, nil
 }
 
@@ -129,11 +132,19 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 
 	// NOTE: Check first if file exists in ipfs
 	md, n, err := sb.b.Get(ctx2, path_)
+	skipPath := err != nil && (strings.Contains(err.Error(), "index.html") ||
+		strings.Contains(err.Error(), "favicon.ico"))
+
+	if sb.reporter != nil && !skipPath {
+		defer func() {
+			if err := sb.reporter.Notify(ctx, path_.RootCid().String()); err != nil {
+				logger.Warn("failed to report sg volume", "err", err)
+			}
+		}()
+	}
 
 	// Not exist, trying to get from sds
 	if err != nil {
-		skipPath := strings.Contains(err.Error(), "index.html") ||
-			strings.Contains(err.Error(), "favicon.ico")
 		if !sb.cfg.Enabled || skipPath {
 			return md, n, err
 		}
@@ -195,12 +206,12 @@ func (sb *SdsBlocksBackend) Get(ctx context.Context, path_ path.ImmutablePath, r
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		path_, errS = path.NewImmutablePath(sdsP)
+		npath_, errS := path.NewImmutablePath(sdsP)
 		if errS != nil {
 			return gateway.ContentPathMetadata{}, nil, errS
 		}
 
-		md, n, err = sb.b.Get(ctx, path_, ranges...)
+		md, n, err = sb.b.Get(ctx, npath_, ranges...)
 		if err != nil {
 			return md, n, err
 		}
