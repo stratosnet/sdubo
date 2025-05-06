@@ -134,11 +134,11 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 	}
 
 	if cfg.Sg.Enabled {
-		client := sg.NewClient(cfg.Sg.URI)
-		reporter := sg.NewReporter(client)
+		reporter := sg.NewReporter(sg.NewClient(cfg.Sg.URI), nd.MFSRepo.MFSDS)
 		if err := reporter.Store(req.Context, sPath.RootCid().String(), sg.ReportFileInfo{
 			ProjectID:   projectId,
-			Cid:         sPath.RootCid(),
+			IPFSCid:     cid_,
+			SdsCid:      sPath.RootCid(),
 			SdsFileHash: sdsFileHash,
 			FileSize:    uint64(fSize),
 		}); err != nil {
@@ -167,8 +167,7 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
 	if cfg.Sg.Enabled {
 		defer func() {
-			client := sg.NewClient(cfg.Sg.URI)
-			reporter := sg.NewReporter(client)
+			reporter := sg.NewReporter(sg.NewClient(cfg.Sg.URI), nd.MFSRepo.MFSDS)
 			path_, err := path.NewImmutablePath(p)
 			if err != nil {
 				return

@@ -167,8 +167,7 @@ func newGatewayBackend(n *core.IpfsNode) (gateway.IPFSBackend, error) {
 	// sg
 	var reporter *sg.Reporter
 	if cfg.Sg.Enabled {
-		client := sg.NewClient(cfg.Sg.URI)
-		reporter = sg.NewReporter(client)
+		reporter = sg.NewReporter(sg.NewClient(cfg.Sg.URI), n.MFSRepo.MFSDS)
 	}
 	// sds
 	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds, reporter, n.DAG, n.Blockstore, n.Pinning)

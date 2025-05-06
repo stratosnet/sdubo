@@ -2,54 +2,60 @@ package sg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
+	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
 )
 
 type Reporter struct {
 	rpcClient *Client
-	mu        sync.RWMutex
+	ds        datastore.Datastore
 }
-
-// NOTE: Tmp storage, IMPLEMENT
-var memStore map[string]ReportFileInfo
 
 var repLogger = logging.Logger("sg/reporter")
 
-func init() {
-	memStore = make(map[string]ReportFileInfo)
-}
-
-func NewReporter(rpcClient *Client) *Reporter {
+func NewReporter(rpcClient *Client, ds datastore.Datastore) *Reporter {
 	return &Reporter{
 		rpcClient: rpcClient,
+		ds:        ds,
 	}
 }
 
-func (r *Reporter) Store(_ context.Context, key string, value ReportFileInfo) error {
+func (r *Reporter) makeKey(key string) datastore.Key {
+	return datastore.NewKey(fmt.Sprintf("/reporter/%s", key))
+}
+
+func (r *Reporter) Store(ctx context.Context, key string, value ReportFileInfo) error {
 	if err := value.Validate(); err != nil {
 		return err
 	}
 
 	repLogger.Debugf("store cid '%s' for next report", key)
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	memStore[key] = value
+	data, err := json.Marshal(&value)
+	if err != nil {
+		return err
+	}
+
+	if err := r.ds.Put(ctx, r.makeKey(key), data); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (r *Reporter) Notify(ctx context.Context, key string) error {
-	r.mu.RLock()
-	data, ok := memStore[key]
-	r.mu.RUnlock()
+	value, err := r.ds.Get(ctx, r.makeKey(key))
+	if err != nil {
+		return err
+	}
 
-	if !ok {
-		return fmt.Errorf("file '%s' does not exist, nothing to report", key)
+	data := &ReportFileInfo{}
+	if err := json.Unmarshal(value, data); err != nil {
+		return err
 	}
 
 	req := &TrafficRequest{
