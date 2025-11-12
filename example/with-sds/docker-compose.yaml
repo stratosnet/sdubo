@@ -1,0 +1,20 @@
+services:
+  sds:
+    image: "stratosnetwork/sds:latest"
+    ports:
+      - "18081:18081"
+    environment:
+      NETWORK_ADDRESS: ${PUBLIC_IP:?}
+      MNEMONIC_PHRASE: "${MNEMONIC_PHRASE:?}"
+    volumes:
+      - sds-data:/sds
+
+  ipfs:
+    image: "stratosnetwork/sdubo:v0.33.2-sds-0.1.12-1422fc"
+    volumes:
+      - ./scripts/init-ipfs.sh:/container-init.d/10-init.sh
+      - ipfs-data:/data/ipfs
+
+volumes:
+  sds-data:
+  ipfs-data:
