@@ -23,6 +23,7 @@ import (
 	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/node"
 	"github.com/ipfs/kubo/sds"
+	"github.com/ipfs/kubo/sg"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -163,8 +164,13 @@ func newGatewayBackend(n *core.IpfsNode) (gateway.IPFSBackend, error) {
 		return nil, err
 	}
 
+	// sg
+	var reporter *sg.Reporter
+	if cfg.Sg.Enabled {
+		reporter = sg.NewReporter(sg.NewClient(cfg.Sg.URI), n.MFSRepo.MFSDS)
+	}
 	// sds
-	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds, n.DAG, n.Blockstore, n.Pinning)
+	sdsBackend, err := sds.NewSdsBlockBackend(backend, &cfg.Sds, reporter, n.DAG, n.Blockstore, n.Pinning)
 	if err != nil {
 		return nil, err
 	}

@@ -5,8 +5,10 @@ import "net/http"
 const (
 	SpfsPrivateKeyHeader = "X-Auth-Privatekey"
 	SpfsUserIdHeader     = "X-Auth-UserId"
+	SpfsProjectIdHeader  = "X-Auth-ProjectId"
 	OptionSpfsPrivKey    = "spfs-privKey"
 	OptionSpfsUserId     = "spfs-userId"
+	OptionSpfsProjectId  = "spfs-projectId"
 )
 
 // sgMiddleware is an http middleware which wraps the next handler for sg headers recovery
@@ -35,6 +37,7 @@ func NewSGMiddleware() func(http.Handler) http.Handler {
 func (h *sgMiddleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	privKey := r.Header.Get(SpfsPrivateKeyHeader)
 	userId := r.Header.Get(SpfsUserIdHeader)
+	projectId := r.Header.Get(SpfsProjectIdHeader)
 
 	r = r.Clone(r.Context())
 	query := r.URL.Query()
@@ -44,6 +47,9 @@ func (h *sgMiddleware) serveHTTP(w http.ResponseWriter, r *http.Request, next ht
 		}
 		if userId != "" {
 			query.Set(OptionSpfsUserId, userId)
+		}
+		if projectId != "" {
+			query.Set(OptionSpfsProjectId, userId)
 		}
 	}
 	r.URL.RawQuery = query.Encode()

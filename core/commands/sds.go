@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/misc/sutil"
 	"github.com/ipfs/kubo/sds"
+	"github.com/ipfs/kubo/sg"
 
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/path"
@@ -24,8 +25,9 @@ import (
 )
 
 var (
-	spfsUserIdOption  = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
-	spfsPrivKeyOption = cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.")
+	spfsUserIdOption    = cmds.StringOption(sds.OptionSpfsUserId, "Spfs user id for user management.")
+	spfsProjectIdOption = cmds.IntOption(sds.OptionSpfsProjectId, "Spfs project id for user management.")
+	spfsPrivKeyOption   = cmds.StringOption(sds.OptionSpfsPrivKey, "Spfs user priv key for signing.")
 )
 
 var logger = logging.Logger("core/commands/sds")
@@ -42,10 +44,16 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 		return path.ImmutablePath{}, err
 	}
 
+	fSize, err := f.Size()
+	if err != nil {
+		return path.ImmutablePath{}, err
+	}
+
 	sOpts := []options.SdsOption{
 		options.Sds.HashOnly(onlyHash),
 	}
 
+	projectId, _ := req.Options[sds.OptionSpfsProjectId].(int)
 	privKey, _ := req.Options[sds.OptionSpfsPrivKey].(string)
 	if privKey != "" {
 		sOpts = append(sOpts, options.Sds.PrivKey(privKey))
@@ -125,6 +133,19 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 		sPath = blockStat.Path()
 	}
 
+	if cfg.Sg.Enabled {
+		reporter := sg.NewReporter(sg.NewClient(cfg.Sg.URI), nd.MFSRepo.MFSDS)
+		if err := reporter.Store(req.Context, sPath.RootCid().String(), sg.ReportFileInfo{
+			ProjectID:   projectId,
+			IPFSCid:     cid_,
+			SdsCid:      sPath.RootCid(),
+			SdsFileHash: sdsFileHash,
+			FileSize:    uint64(fSize),
+		}); err != nil {
+			return path.ImmutablePath{}, err
+		}
+	}
+
 	// // NOTE: linking after to main mfs tree for proper gc
 	// // should be replaced somehow in future
 	// filesRoot, err := nd.GetMFSRoot("")
@@ -144,6 +165,19 @@ func addSdsCar(req *cmds.Request, cfg *config.Config, api iface.CoreAPI, cid_ ci
 }
 
 func getSdsCarOrResolve(nd *core.IpfsNode, cfg *config.Config, ctx context.Context, api iface.CoreAPI, p path.Path, opts ...options.SdsOption) (files.Node, error) {
+	if cfg.Sg.Enabled {
+		defer func() {
+			reporter := sg.NewReporter(sg.NewClient(cfg.Sg.URI), nd.MFSRepo.MFSDS)
+			path_, err := path.NewImmutablePath(p)
+			if err != nil {
+				return
+			}
+			if err := reporter.Notify(ctx, path_.RootCid().String()); err != nil {
+				logger.Warn("failed to report sg volume", "err", err)
+			}
+		}()
+	}
+
 	ctxUfs, _ := context.WithTimeout(ctx, time.Duration(sds.SpfsGatewayBlockTimeout)*time.Second)
 	// NOTE: Check first if file exists in ipfs
 	f, err := api.Unixfs().Get(ctxUfs, p)
